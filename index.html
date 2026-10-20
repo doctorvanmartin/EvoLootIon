@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EvoLootIon — Simulador de Vida Artificial Microbiana</title>
+  <style>
+    :root {
+      --bg-dark: #070b14;
+      --bg-panel: rgba(15, 23, 42, 0.88);
+      --bg-card: rgba(30, 41, 59, 0.65);
+      --border: rgba(148, 163, 184, 0.16);
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --positive: #4ade80;
+      --warning: #fbbf24;
+      --danger: #f87171;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Sidebar: Diseñador Genético y Telemetría */
+    .sidebar {
+      background: var(--bg-panel);
+      backdrop-filter: blur(14px);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 16px;
+      gap: 14px;
+      z-index: 10;
+    }
+
+    .brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #38bdf8, #4ade80);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .preview-box {
+      position: relative;
+      width: 100%;
+      height: 115px;
+      border-radius: 8px;
+      background: radial-gradient(circle at center, #13233f 0%, #090e1a 100%);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #previewCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .cost-badges {
+      position: absolute;
+      bottom: 6px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .cost-badge {
+      background: rgba(7, 11, 20, 0.78);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .form-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .field-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .field-label span.val {
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    select, input[type="text"] {
+      width: 100%;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      background: linear-gradient(135deg, #0284c7, #10b981);
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.15s;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.94;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    /* Zona Principal del Simulador */
+    .viewport {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg-dark);
+    }
+
+    #simCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #simCanvas:active {
+      cursor: grabbing;
+    }
+
+    /* Barra superior flotante de controles */
+    .top-hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(10px);
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      pointer-events: auto;
+    }
+
+    .hud-btn {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(30, 41, 59, 0.8);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .hud-btn:hover {
+      background: rgba(51, 65, 85, 0.9);
+    }
+
+    .hud-btn.active {
+      background: var(--accent-glow);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .kpi-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      color: var(--text-main);
+    }
+
+    .kpi-pill strong {
+      color: var(--accent);
+    }
+
+    /* Lista de Linajes y Gráfica Lotka-Volterra */
+    .lineage-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .lineage-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--border);
+    }
+
+    .lineage-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    .lineage-name {
+      display: flex;
+      align-items: center;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lineage-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    #chartCanvas {
+      width: 100%;
+      height: 85px;
+      display: block;
+      border-radius: 6px;
+      background: rgba(7, 11, 20, 0.65);
+      border: 1px solid var(--border);
+    }
+
+    /* Inspector de Bacteria Seleccionada */
+    .inspector-overlay {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      width: 270px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+      pointer-events: auto;
+    }
+
+    .inspector-overlay.visible {
+      display: flex;
+    }
+
+    .inspector-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 8px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .inspector-grid span b {
+      color: var(--text-main);
+    }
+
+    @media (max-width: 860px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: 55vh 45vh;
+      }
+      .viewport {
+        grid-row: 1;
+        height: 55vh;
+      }
+      .sidebar {
+        grid-row: 2;
+        height: 45vh;
+        border-right: none;
+        border-top: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Panel Lateral: Diseñador de Cepa y Estadísticas -->
+    <aside class="sidebar">
+      <div class="brand-header">
+        <div>
+          <div class="brand-title">EvoLootIon</div>
+          <div class="brand-subtitle">Simulador Evolutivo Microbiano</div>
+        </div>
+        <span style="font-family: var(--font-mono); font-size: 11px; color: var(--positive);">v2.0 Argon</span>
+      </div>
+
+      <!-- Vista Previa Procedural de la Cepa -->
+      <div class="card">
+        <div class="card-title">
+          <span>Fenotipo &amp; Costes (Kleiber)</span>
+          <span id="previewTraitSummary" style="font-size: 10px; color: var(--text-muted);">Bacilo</span>
+        </div>
+        <div class="preview-box">
+          <canvas id="previewCanvas"></canvas>
+          <div class="cost-badges">
+            <span class="cost-badge" id="badgeBasal">Basal: 1.10/s</span>
+            <span class="cost-badge" id="badgeDrag">Drag: 0.19</span>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field-row">
+            <label class="field-label" for="strainName">Nombre de tu Cepa</label>
+            <input type="text" id="strainName" value="Jugador Alpha" maxlength="26" />
+          </div>
+
+          <!-- Las 5 Categorías Biológicas -->
+          <div class="field-row">
+            <label class="field-label" for="selMetabolism">1. Metabolismo y Alimentación</label>
+            <select id="selMetabolism">
+              <option value="saprophyte" selected>Saprófita (Detritívora — Bonus Cadáveres)</option>
+              <option value="photosynthetic">Fotosintética (Energía Pasiva Solar)</option>
+              <option value="predator">Predadora / Fagocítica (Caza Activa)</option>
+              <option value="fermenter">Fermentadora (Asimilación Rápida x1.35)</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label" for="selMotility">2. Locomoción y Movilidad</label>
+            <select id="selMotility">
+              <option value="flagellated" selected>Flagelada (Run &amp; Tumble Rápido)</option>
+              <option value="ciliated">Ciliada (Giro Suave, Bajo Coste)</option>
+              <option value="sessile">Sésil / Biofilm (Inmóvil, Gasto 0)</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label" for="selWall">3. Estructura y Pared Celular</label>
+            <select id="selWall">
+              <option value="gram_negative">Gram-Negativa (Doble Membrana Anti-Toxina)</option>
+              <option value="gram_positive">Gram-Positiva (Pared Gruesa Peptidoglicano)</option>
+              <option value="capsule" selected>Cápsula Mucosa (Evasión Fagocitosis/Toxina)</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label" for="selReproduction">4. Estrategia Reproductiva</label>
+            <select id="selReproduction">
+              <option value="binary_fission" selected>Fisión Binaria Simétrica (50% / 50%)</option>
+              <option value="budding">Gemación Polar (Madre 65% / Hija 35%)</option>
+              <option value="sporulation">Capacidad de Esporulación (Quiste Latente)</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label" for="selInteraction">5. Interacción y Guerra Química</label>
+            <select id="selInteraction">
+              <option value="bacteriocins">Bacteriocinas (Emisión Continua)</option>
+              <option value="quorum_sensing" selected>Quorum Sensing (Ataque Colectivo)</option>
+              <option value="neutral">Neutral / Simbiótica (Sin Gasto Químico)</option>
+            </select>
+          </div>
+
+          <!-- Genes Cuantitativos -->
+          <div class="field-row">
+            <label class="field-label">Tamaño Celular (Radio) <span class="val" id="valSize">8.5 px</span></label>
+            <input type="range" id="rngSize" min="5.5" max="13.5" step="0.5" value="8.5" />
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">Velocidad Máxima <span class="val" id="valSpeed">2.4</span></label>
+            <input type="range" id="rngSpeed" min="0.6" max="4.0" step="0.2" value="2.4" />
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">Armadura de Membrana <span class="val" id="valArmor">4.0</span></label>
+            <input type="range" id="rngArmor" min="0" max="10" step="0.5" value="4.0" />
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">Potencia Bacteriocina <span class="val" id="valToxin">2.2</span></label>
+            <input type="range" id="rngToxin" min="0.5" max="4.5" step="0.2" value="2.2" />
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">Pigmento Genético (Hue) <span class="val" id="valHue">195°</span></label>
+            <input type="range" id="rngHue" min="0" max="355" step="5" value="195" />
+          </div>
+
+          <button class="btn-primary" id="btnDeploy">Inocular Placa de Cultivo (Reiniciar)</button>
+        </div>
+      </div>
+
+      <!-- Dinámica Poblacional (Lotka-Volterra) -->
+      <div class="card">
+        <div class="card-title">
+          <span>Dinámica de Poblaciones</span>
+          <span id="lblSimTime" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">0.0s</span>
+        </div>
+        <canvas id="chartCanvas" width="300" height="85"></canvas>
+        <div class="lineage-list" id="lineageList"></div>
+      </div>
+    </aside>
+
+    <!-- Viewport Principal: Placa de Petri -->
+    <main class="viewport">
+      <div class="top-hud">
+        <div class="hud-group">
+          <button class="hud-btn" id="btnPause">Pausar</button>
+          <button class="hud-btn active" data-speed="1">1x</button>
+          <button class="hud-btn" data-speed="2">2x</button>
+          <button class="hud-btn" data-speed="4">4x</button>
+          <button class="hud-btn" id="btnFeed">+ Sustrato</button>
+          <button class="hud-btn" id="btnResetCam">Centrar Vista</button>
+          <button class="hud-btn" id="btnToggleLod" title="Forzar Nivel de Detalle Simplificado">LOD Auto</button>
+        </div>
+
+        <div class="hud-group">
+          <span class="kpi-pill">Bacterias: <strong id="kpiPop">0</strong></span>
+          <span class="kpi-pill">Esporas: <strong id="kpiSpores">0</strong></span>
+          <span class="kpi-pill">Nutrientes: <strong id="kpiNutrients">0</strong></span>
+          <span class="kpi-pill">Gen Máx: <strong id="kpiGen">1</strong></span>
+          <span class="kpi-pill">FPS: <strong id="kpiFps">60</strong></span>
+        </div>
+      </div>
+
+      <canvas id="simCanvas"></canvas>
+
+      <!-- Inspector de Organismo al hacer clic -->
+      <div class="inspector-overlay" id="inspectorPanel">
+        <div class="card-title">
+          <span id="inspName">Organismo #1</span>
+          <span id="inspState" style="color: var(--positive);">Activo</span>
+        </div>
+        <div class="inspector-grid">
+          <span>Gen: <b id="inspGen">1</b></span>
+          <span>Energía: <b id="inspEnergy">0 / 0</b></span>
+          <span>Metabolismo: <b id="inspMeta">-</b></span>
+          <span>Locomoción: <b id="inspMot">-</b></span>
+          <span>Pared: <b id="inspWall">-</b></span>
+          <span>Reprod.: <b id="inspRepro">-</b></span>
+          <span>Interacción: <b id="inspInter">-</b></span>
+          <span>Armadura: <b id="inspArmor">0</b></span>
+          <span>Basal: <b id="inspBasal">0/s</b></span>
+          <span>Velocidad: <b id="inspSpeed">0</b></span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
