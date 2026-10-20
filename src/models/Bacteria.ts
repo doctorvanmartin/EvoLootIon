@@ -5,6 +5,14 @@ import { SimConfig } from '../config/SimulationConfig';
 
 let nextBacteriaId = 1;
 
+export interface WorldEnvironment {
+  width: number;
+  height: number;
+  lightX: number;
+  lightY: number;
+  lightRadius: number;
+}
+
 export class Bacteria {
   public readonly id: number;
   public vx: number = 0;
@@ -13,6 +21,12 @@ export class Bacteria {
   public energy: number;
   public age: number = 0;
   public isDead: boolean = false;
+  public isDying: boolean = false;
+  public dyingProgress: number = 0;
+  public dividingProgress: number = 0;
+  public divisionCooldown: number = 0;
+  public beingAttackedTimer: number = 0;
+  public isAttackingTimer: number = 0;
   public isSpore: boolean = false;
   public isEmittingToxin: boolean = false;
   public animPhase: number = Math.random() * 100;
@@ -26,24 +40,54 @@ export class Bacteria {
     public x: number,
     public y: number,
     public dna: DNA,
-    initialEnergy?: number
+    initialEnergy?: number,
+    initialDivisionCooldown: number = 0
   ) {
     this.id = nextBacteriaId++;
-    this.energy = initialEnergy ?? dna.stats.splitEnergy * 0.55;
+    this.energy = initialEnergy ?? dna.stats.splitEnergy * 0.62;
+    this.divisionCooldown = initialDivisionCooldown;
   }
 
   public get radius(): number {
     return this.dna.stats.size;
   }
 
+  public get effectiveSplitEnergy(): number {
+    const suctionPenalty = this.dna.traits.adaptation === 'suction_pore' ? 1.15 : 1.0;
+    return this.dna.stats.splitEnergy * suctionPenalty;
+  }
+
   public update(
     dt: number,
     gridNutrients: SpatialHashGrid<Nutrient>,
     gridBacteria: SpatialHashGrid<Bacteria>,
-    bounds: { width: number; height: number }
+    bounds: WorldEnvironment
   ): Bacteria | null {
+    if (this.beingAttackedTimer > 0) {
+      this.beingAttackedTimer = Math.max(0, this.beingAttackedTimer - dt);
+    }
+    if (this.isAttackingTimer > 0) {
+      this.isAttackingTimer = Math.max(0, this.isAttackingTimer - dt);
+    }
+
+    // Fase de Lisis Celular gradual (muerte progresiva y visible)
+    if (this.isDying) {
+      this.dyingProgress += dt / SimConfig.DEATH_LYSIS_DURATION;
+      this.vx *= 0.9;
+      this.vy *= 0.9;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.animPhase += dt * 0.5;
+      if (this.dyingProgress >= 1.0) {
+        this.isDead = true;
+      }
+      return null;
+    }
+
     if (this.energy <= 0) {
-      this.isDead = true;
+      this.isDying = true;
+      this.dividingProgress = 0;
+      this.isEmittingToxin = false;
       return null;
     }
 
@@ -54,6 +98,7 @@ export class Bacteria {
     if (this.dna.traits.reproduction === 'sporulation') {
       if (!this.isSpore && this.energy < SimConfig.SPORULATION_THRESHOLD) {
         this.isSpore = true;
+        this.dividingProgress = 0;
         this.vx = 0;
         this.vy = 0;
       } else if (
@@ -65,17 +110,16 @@ export class Bacteria {
     }
 
     if (this.isSpore) {
-      // Una endospora consume solo un 5% del metabolismo basal y absorbe nutrientes por contacto pasivo
+      // Una endospora es metabólicamente casi inerte: consume 5% del basal y solo germina si toca sustrato
       this.energy -= this.dna.stats.basalMetabolism * SimConfig.SPORE_METABOLISM_FACTOR * dt;
-      if (this.dna.traits.metabolism === 'photosynthetic') {
-        this.energy += SimConfig.PHOTOSYNTHESIS_RATE * 0.25 * dt;
-      }
       this.consumeNearbyNutrients(gridNutrients);
       if (this.energy <= 0) {
-        this.isDead = true;
+        this.isDying = true;
       }
       return null;
     }
+
+    this.divisionCooldown = Math.max(0, this.divisionCooldown - dt);
 
     // 2. Búsqueda de entorno en O(1) usando buffers preasignados (Zero-GC)
     const nearbyNutrients = gridNutrients.queryRadius(
@@ -91,21 +135,32 @@ export class Bacteria {
       Bacteria.neighborBacteriaBuf
     );
 
-    // 3. Quimiotaxis y locomoción
+    // 3. Quimiotaxis / Fototaxis y locomoción
     this.computeLocomotion(nearbyNutrients, nearbyBacteria, bounds);
+
+    // Si está en pleno proceso de división, reduce su velocidad de desplazamiento
+    if (this.dividingProgress > 0) {
+      this.vx *= 0.42;
+      this.vy *= 0.42;
+    }
+
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     this.handleBoundaryCollisions(bounds);
 
-    const currentSpeed = Math.hypot(this.vx, this.vy) / 30;
-    this.animPhase += dt * (2 + currentSpeed * 2.5);
+    const currentSpeed = Math.hypot(this.vx, this.vy) / SimConfig.MOVEMENT_SPEED_FACTOR;
+    this.animPhase += dt * (1 + currentSpeed * 1.25);
 
     // 4. Balance energético (Ingreso vs Gasto)
     let energyDrain =
       this.dna.stats.basalMetabolism + this.dna.stats.dragFactor * (currentSpeed ** 2);
 
-    // Guerra química y Quorum Sensing
-    if (this.dna.traits.interaction !== 'neutral' && this.dna.stats.toxinPower > 0) {
+    // Guerra química, Quorum Sensing y Sideróforos
+    if (this.dna.traits.interaction === 'siderophores') {
+      this.isEmittingToxin = true;
+      energyDrain += 0.24;
+      this.applySiderophorePull(nearbyNutrients, dt);
+    } else if (this.dna.traits.interaction !== 'neutral' && this.dna.stats.toxinPower > 0) {
       const canEmit = this.checkQuorumCondition(nearbyBacteria);
       if (canEmit) {
         this.isEmittingToxin = true;
@@ -114,50 +169,101 @@ export class Bacteria {
       }
     }
 
-    this.energy -= energyDrain * dt;
-
-    // Ingreso por Fotosíntesis con cinética de saturación de Michaelis-Menten según irradiancia local I(x)
-    if (this.dna.traits.metabolism === 'photosynthetic') {
-      const irradiance = this.computeLocalIrradiance(bounds);
-      const mmFactor = irradiance / (SimConfig.LIGHT_HALF_SATURATION + irradiance);
-      this.energy += SimConfig.PHOTOSYNTHESIS_RATE * mmFactor * 1.35 * dt;
+    // Adaptación única: Ventosa / Arpón contráctil atrae el nutriente más cercano
+    if (this.dna.traits.adaptation === 'suction_pore') {
+      this.applySuctionPore(nearbyNutrients, dt);
     }
 
-    // 5. Alimentación activa (Saprófita / Fermentadora vs Predadora)
+    // Reproducción por Conjugación (Pili sexual): apoyo metabólico al contactar con aliadas
+    if (this.dna.traits.reproduction === 'conjugation') {
+      this.applyConjugationSynergy(nearbyBacteria, dt);
+    }
+
+    this.energy -= energyDrain * dt;
+
+    // Ingreso por Fotosíntesis o Quimiolitotrofia
+    if (this.dna.traits.metabolism === 'photosynthetic') {
+      const irradiance = this.computeLocalIrradiance(bounds, nearbyBacteria);
+      const mmFactor = irradiance / (SimConfig.LIGHT_HALF_SATURATION + irradiance);
+      this.energy += SimConfig.PHOTOSYNTHESIS_RATE * mmFactor * dt;
+    } else if (this.dna.traits.metabolism === 'chemolithotroph') {
+      this.energy += SimConfig.CHEMOLITHOTROPHY_RATE * dt;
+    }
+
+    // 5. Alimentación activa y defensa por espinas
     if (this.dna.traits.metabolism === 'predator') {
       this.attemptPredation(nearbyBacteria, dt);
     } else {
       this.consumeNearbyNutrients(gridNutrients);
+      if (this.dna.traits.adaptation === 'spikes') {
+        this.applyDefensiveSpikes(nearbyBacteria, dt);
+      }
     }
 
     if (this.energy <= 0) {
-      this.isDead = true;
+      this.isDying = true;
+      this.dividingProgress = 0;
       return null;
     }
 
-    // 6. División celular (Fisión Binaria vs Gemación)
-    if (this.energy >= this.dna.stats.splitEnergy) {
-      return this.reproduce();
+    // 6. División celular gradual
+    const splitThreshold = this.effectiveSplitEnergy;
+    if (
+      this.divisionCooldown <= 0 &&
+      (this.energy >= splitThreshold || this.dividingProgress > 0)
+    ) {
+      if (this.energy < splitThreshold * 0.78) {
+        // Si sufre daño grave durante la división, aborta la citocinesis para sobrevivir
+        this.dividingProgress = Math.max(0, this.dividingProgress - dt * 1.5);
+      } else {
+        this.dividingProgress += dt / SimConfig.DIVISION_DURATION;
+        if (this.dividingProgress >= 1.0) {
+          this.dividingProgress = 0;
+          return this.reproduce();
+        }
+      }
     }
 
     return null;
   }
 
   /**
-   * Irradiancia espacial I(x, y): más intensa hacia el centro del medio de cultivo (foco del microscopio).
+   * Irradiancia espacial I(x, y): concentrada en un epicentro luminoso acotado (lightX, lightY)
+   * y sujeta a auto-sombreado por densidad celular vecina (Ley de Beer-Lambert).
    */
-  private computeLocalIrradiance(bounds: { width: number; height: number }): number {
-    const cx = bounds.width * 0.5;
-    const cy = bounds.height * 0.5;
-    const maxDist = Math.hypot(cx, cy) || 1;
-    const dist = Math.hypot(this.x - cx, this.y - cy);
-    return Math.max(0.25, 1.15 - (dist / maxDist) * 0.7);
+  private computeLocalIrradiance(bounds: WorldEnvironment, nearbyBacteria: Bacteria[]): number {
+    const dist = Math.hypot(this.x - bounds.lightX, this.y - bounds.lightY);
+    const r = bounds.lightRadius;
+    // Caída gaussiana fuera del foco luminoso hacia la penumbra basal
+    const radial = Math.exp(-((dist / r) ** 2) * 1.65);
+    const rawLight =
+      SimConfig.LIGHT_AMBIENT_MIN + (1.0 - SimConfig.LIGHT_AMBIENT_MIN) * radial;
+
+    // Auto-sombreado: las bacterias cercanas absorben y bloquean parte de los fotones disponibles
+    const shadeRadiusSq = SimConfig.PHOTOSYNTHESIS_SHADING_RADIUS ** 2;
+    let shadingNeighbors = 0;
+    for (let i = 0; i < nearbyBacteria.length; i++) {
+      const other = nearbyBacteria[i];
+      if (other !== this && !other.isDead) {
+        const dSq = (other.x - this.x) ** 2 + (other.y - this.y) ** 2;
+        if (dSq <= shadeRadiusSq) {
+          shadingNeighbors++;
+        }
+      }
+    }
+
+    const shadingFactor = 1 / (1 + shadingNeighbors * SimConfig.PHOTOSYNTHESIS_SHADING_COEFF);
+    const baseIrradiance = rawLight * shadingFactor;
+    if (this.dna.traits.adaptation === 'bioluminescence') {
+      return Math.max(0.55 * shadingFactor, baseIrradiance);
+    }
+    return baseIrradiance;
   }
 
   private computeLocomotion(
     nutrients: Nutrient[],
     bacteria: Bacteria[],
-    bounds: { width: number; height: number }
+    bounds: WorldEnvironment
   ): void {
     if (this.dna.traits.motility === 'sessile') {
       this.vx = 0;
@@ -170,10 +276,17 @@ export class Bacteria {
     let minDistSq = Infinity;
 
     if (this.dna.traits.metabolism === 'predator') {
-      // Las predadoras buscan presas vivas de distinto linaje (no esporuladas)
+      // Las predadoras buscan presas vivas de distinto linaje (no esporuladas ni muriendo)
       for (let i = 0; i < bacteria.length; i++) {
         const prey = bacteria[i];
-        if (prey.isDead || prey.dna.lineageId === this.dna.lineageId || prey.isSpore) continue;
+        if (
+          prey.isDead ||
+          prey.isDying ||
+          prey.dna.lineageId === this.dna.lineageId ||
+          prey.isSpore
+        ) {
+          continue;
+        }
         const dSq = (prey.x - this.x) ** 2 + (prey.y - this.y) ** 2;
         if (dSq < minDistSq) {
           minDistSq = dSq;
@@ -182,7 +295,7 @@ export class Bacteria {
         }
       }
     } else if (this.dna.traits.metabolism !== 'photosynthetic') {
-      // Saprófitas y fermentadoras siguen el gradiente de nutrientes
+      // Saprófitas, fermentadoras y quimiolitótrofas siguen el gradiente de nutrientes
       for (let i = 0; i < nutrients.length; i++) {
         const n = nutrients[i];
         if (n.isDead) continue;
@@ -194,34 +307,121 @@ export class Bacteria {
         }
       }
     } else {
-      // Fotosintéticas con motilidad tienden suavemente hacia el foco luminoso central si están lejos
-      const cx = bounds.width * 0.5;
-      const cy = bounds.height * 0.5;
-      const distCenterSq = (cx - this.x) ** 2 + (cy - this.y) ** 2;
-      if (distCenterSq > (Math.min(bounds.width, bounds.height) * 0.38) ** 2) {
-        const desired = Math.atan2(cy - this.y, cx - this.x);
-        this.angle += Math.sin(desired - this.angle) * 0.08;
+      // Fototaxis: las fotosintéticas móviles perciben el gradiente hacia el epicentro de luz
+      const distLight = Math.hypot(bounds.lightX - this.x, bounds.lightY - this.y);
+      const maxSenseLight = bounds.lightRadius * 1.6 + this.dna.stats.perceptionRadius;
+      if (distLight > bounds.lightRadius * 0.45 && distLight <= maxSenseLight) {
+        const desired = Math.atan2(bounds.lightY - this.y, bounds.lightX - this.x);
+        this.angle += Math.sin(desired - this.angle) * 0.12;
       }
     }
 
     if (minDistSq < Infinity) {
       const desiredAngle = Math.atan2(targetY - this.y, targetX - this.x);
-      // Ciliadas maniobran con giro suave; flageladas orientan directo por quimiotaxis
+      // Ciliadas y espiroquetas maniobran con giro progresivo; flageladas orientan directo por quimiotaxis
       if (this.dna.traits.motility === 'ciliated') {
-        const diff = Math.atan2(Math.sin(desiredAngle - this.angle), Math.cos(desiredAngle - this.angle));
+        const diff = Math.atan2(
+          Math.sin(desiredAngle - this.angle),
+          Math.cos(desiredAngle - this.angle)
+        );
         this.angle += diff * 0.25;
+      } else if (this.dna.traits.motility === 'spirochete') {
+        const diff = Math.atan2(
+          Math.sin(desiredAngle - this.angle),
+          Math.cos(desiredAngle - this.angle)
+        );
+        this.angle += diff * 0.35 + Math.sin(this.animPhase * 2.2) * 0.08;
       } else {
         this.angle = desiredAngle;
       }
     } else {
       // Run & tumble browniano
-      const tumbleAmplitude = this.dna.traits.motility === 'ciliated' ? 0.2 : 0.35;
+      const tumbleAmplitude =
+        this.dna.traits.motility === 'ciliated'
+          ? 0.18
+          : this.dna.traits.motility === 'spirochete'
+            ? 0.26
+            : 0.34;
       this.angle += (Math.random() - 0.5) * tumbleAmplitude;
     }
 
-    const speedPx = this.dna.stats.maxSpeed * 30;
+    const effectiveSpeed = this.dna.getEffectiveMaxSpeed();
+    const speedPx = effectiveSpeed * SimConfig.MOVEMENT_SPEED_FACTOR;
     this.vx = Math.cos(this.angle) * speedPx;
     this.vy = Math.sin(this.angle) * speedPx;
+  }
+
+  private applySiderophorePull(nutrients: Nutrient[], dt: number): void {
+    const rSq = SimConfig.SIDEROPHORE_PULL_RADIUS ** 2;
+    for (let i = 0; i < nutrients.length; i++) {
+      const n = nutrients[i];
+      if (n.isDead) continue;
+      const dx = this.x - n.x;
+      const dy = this.y - n.y;
+      const dSq = dx * dx + dy * dy;
+      if (dSq > 4 && dSq <= rSq) {
+        const dist = Math.sqrt(dSq);
+        n.x += (dx / dist) * SimConfig.SIDEROPHORE_PULL_FORCE * dt;
+        n.y += (dy / dist) * SimConfig.SIDEROPHORE_PULL_FORCE * dt;
+      }
+    }
+  }
+
+  private applySuctionPore(nutrients: Nutrient[], dt: number): void {
+    const maxR = this.radius + 46;
+    const maxRSq = maxR * maxR;
+    let closest: Nutrient | null = null;
+    let bestDSq = maxRSq;
+    for (let i = 0; i < nutrients.length; i++) {
+      const n = nutrients[i];
+      if (n.isDead) continue;
+      const dx = this.x - n.x;
+      const dy = this.y - n.y;
+      const dSq = dx * dx + dy * dy;
+      if (dSq < bestDSq) {
+        bestDSq = dSq;
+        closest = n;
+      }
+    }
+    if (closest && bestDSq > 4) {
+      const dist = Math.sqrt(bestDSq);
+      closest.x += ((this.x - closest.x) / dist) * 52 * dt;
+      closest.y += ((this.y - closest.y) / dist) * 52 * dt;
+    }
+  }
+
+  private applyConjugationSynergy(neighbors: Bacteria[], dt: number): void {
+    const rSq = (this.radius * 3.5) ** 2;
+    for (let i = 0; i < neighbors.length; i++) {
+      const ally = neighbors[i];
+      if (
+        ally !== this &&
+        !ally.isDead &&
+        !ally.isDying &&
+        ally.dna.lineageId === this.dna.lineageId
+      ) {
+        const dSq = (ally.x - this.x) ** 2 + (ally.y - this.y) ** 2;
+        if (dSq <= rSq) {
+          this.energy += 0.35 * dt;
+          return;
+        }
+      }
+    }
+  }
+
+  private applyDefensiveSpikes(neighbors: Bacteria[], dt: number): void {
+    for (let i = 0; i < neighbors.length; i++) {
+      const rival = neighbors[i];
+      if (rival.isDead || rival.isDying || rival.dna.lineageId === this.dna.lineageId) continue;
+      const contactDist = this.radius + rival.radius + 4;
+      if ((rival.x - this.x) ** 2 + (rival.y - this.y) ** 2 <= contactDist ** 2) {
+        rival.energy -= 6.5 * dt;
+        rival.beingAttackedTimer = 0.2;
+        if (rival.energy <= 0) {
+          rival.isDying = true;
+        }
+      }
+    }
   }
 
   private checkQuorumCondition(neighbors: Bacteria[]): boolean {
@@ -248,7 +448,7 @@ export class Bacteria {
 
     for (let i = 0; i < neighbors.length; i++) {
       const rival = neighbors[i];
-      if (rival.isDead || rival.dna.lineageId === this.dna.lineageId) continue;
+      if (rival.isDead || rival.isDying || rival.dna.lineageId === this.dna.lineageId) continue;
 
       const dSq = (rival.x - this.x) ** 2 + (rival.y - this.y) ** 2;
       if (dSq <= rSq) {
@@ -256,7 +456,10 @@ export class Bacteria {
         const falloff = Math.exp(-dSq / sigmaSq2);
         const capsuleShield = rival.dna.traits.wall === 'capsule' ? 0.5 : 1.0;
         const gramNegShield = rival.dna.traits.wall === 'gram_negative' ? 0.72 : 1.0;
+        const sLayerShield = rival.dna.traits.wall === 's_layer' ? 0.8 : 1.0;
+        const lithoShield = rival.dna.traits.metabolism === 'chemolithotroph' ? 0.8 : 1.0;
         const sporeShield = rival.isSpore ? 0.15 : 1.0;
+        const mawVuln = rival.dna.traits.adaptation === 'giant_maw' ? 0.75 : 1.0;
 
         const rawDmg =
           this.dna.stats.toxinPower *
@@ -265,11 +468,14 @@ export class Bacteria {
           falloff *
           capsuleShield *
           gramNegShield *
+          sLayerShield *
+          lithoShield *
           sporeShield;
-        const netDmg = rawDmg / (1 + rival.dna.stats.armor * 0.35);
+        const netDmg = rawDmg / (1 + rival.dna.stats.armor * mawVuln * 0.35);
         rival.energy -= netDmg;
+        rival.beingAttackedTimer = 0.22;
         if (rival.energy <= 0) {
-          rival.isDead = true;
+          rival.isDying = true;
         }
       }
     }
@@ -278,33 +484,69 @@ export class Bacteria {
   private attemptPredation(neighbors: Bacteria[], dt: number): void {
     for (let i = 0; i < neighbors.length; i++) {
       const prey = neighbors[i];
-      if (prey.isDead || prey.dna.lineageId === this.dna.lineageId || prey.isSpore) continue;
+      if (
+        prey.isDead ||
+        prey.isDying ||
+        prey.dna.lineageId === this.dna.lineageId ||
+        prey.isSpore
+      ) {
+        continue;
+      }
 
-      const contactDist = this.radius + prey.radius;
+      const contactDist = this.radius + prey.radius + 2;
       if ((prey.x - this.x) ** 2 + (prey.y - this.y) ** 2 <= contactDist ** 2) {
-        // Cápsula mucosa dificulta ser fagocitada
-        const evasionFactor = prey.dna.traits.wall === 'capsule' ? 0.45 : 1.0;
+        // Cápsula mucosa, espiroqueta y bioluminiscencia dificultan ser fagocitada
+        const evasionFactor =
+          (prey.dna.traits.wall === 'capsule' ? 0.5 : 1.0) *
+          (prey.dna.traits.motility === 'spirochete' ? 0.75 : 1.0) *
+          (prey.dna.traits.adaptation === 'bioluminescence' ? 0.72 : 1.0) *
+          (prey.dna.traits.motility === 'sessile' ? 0.85 : 1.0);
+
+        const clawBonus = this.dna.traits.adaptation === 'claws' ? 1.45 : 1.0;
+        const mawBonus = this.dna.traits.adaptation === 'giant_maw' ? 1.25 : 1.0;
+        const preyArmorEff = prey.dna.traits.adaptation === 'giant_maw' ? 0.75 : 1.0;
+
         const biteDmg =
-          (SimConfig.PREDATION_BITE_DPS * dt * evasionFactor) /
-          (1 + prey.dna.stats.armor * 0.25);
+          (SimConfig.PREDATION_BITE_DPS * dt * evasionFactor * clawBonus) /
+          (1 + prey.dna.stats.armor * preyArmorEff * 0.25);
+
         prey.energy -= biteDmg;
-        this.energy += biteDmg * SimConfig.PREDATION_EFFICIENCY;
+        prey.beingAttackedTimer = 0.28;
+        this.isAttackingTimer = 0.28;
+
+        // Si el predador tiene pinzas, frena a la presa sujetándola
+        if (this.dna.traits.adaptation === 'claws') {
+          prey.vx *= 0.4;
+          prey.vy *= 0.4;
+        }
+
+        // Daño reflejado si la presa tiene Pinchos Calcáreos o Capa S Cristalina
+        if (prey.dna.traits.adaptation === 'spikes') {
+          this.energy -= biteDmg * 0.4;
+          this.beingAttackedTimer = 0.25;
+        } else if (prey.dna.traits.wall === 's_layer') {
+          this.energy -= biteDmg * 0.2;
+        }
+
+        this.energy += biteDmg * SimConfig.PREDATION_EFFICIENCY * mawBonus;
         if (prey.energy <= 0) {
-          prey.isDead = true;
+          prey.isDying = true;
         }
       }
     }
   }
 
   private consumeNearbyNutrients(gridNutrients: SpatialHashGrid<Nutrient>): void {
+    const extraReach = this.dna.traits.adaptation === 'giant_maw' ? 9 : 4;
     const contact = gridNutrients.queryRadius(
       this.x,
       this.y,
-      this.radius + 4,
+      this.radius + extraReach,
       Bacteria.contactNutrientsBuf
     );
 
     const metabolism = this.dna.traits.metabolism;
+    const mawBonus = this.dna.traits.adaptation === 'giant_maw' ? 1.25 : 1.0;
 
     for (let i = 0; i < contact.length; i++) {
       const n = contact[i];
@@ -319,34 +561,38 @@ export class Bacteria {
         } else if (metabolism === 'saprophyte' && n.isOrganicCorpse) {
           mult = SimConfig.SAPROPHYTE_CORPSE_BONUS;
         } else if (metabolism === 'photosynthetic') {
-          mult = 0.35; // Fotosintéticas asimilan poco sustrato orgánico sólido
+          mult = 0.2; // Fotosintéticas asimilan muy poco sustrato orgánico sólido
+        } else if (metabolism === 'chemolithotroph') {
+          mult = 0.65;
         }
 
-        this.energy += s * saturation * mult;
+        this.energy += s * saturation * mult * mawBonus;
         n.isDead = true;
       }
     }
   }
 
   private reproduce(): Bacteria {
-    const cost = this.dna.stats.splitEnergy * SimConfig.REPLICATION_COST_RATIO;
+    const cost = this.effectiveSplitEnergy * SimConfig.REPLICATION_COST_RATIO;
     const available = this.energy - cost;
 
-    // Gemación (65% madre / 35% hija) vs Fisión Binaria (50% / 50%)
-    const isBudding = this.dna.traits.reproduction === 'budding';
-    const childShare = isBudding ? 0.35 : 0.5;
+    // Gemación (65% madre / 35% hija), Conjugación (55% / 45%) o Fisión Binaria (50% / 50%)
+    const repro = this.dna.traits.reproduction;
+    const childShare = repro === 'budding' ? 0.35 : repro === 'conjugation' ? 0.45 : 0.5;
 
     this.energy = available * (1 - childShare);
     const childEnergy = available * childShare;
+    this.divisionCooldown = SimConfig.MIN_INTERDIVISION_INTERVAL;
 
-    const offsetAngle = this.angle + Math.PI + (Math.random() - 0.5);
-    const spawnDist = this.radius * 1.4;
+    const offsetAngle = this.angle + Math.PI + (Math.random() - 0.5) * 0.4;
+    const spawnDist = this.radius * 1.65;
 
     return new Bacteria(
       this.x + Math.cos(offsetAngle) * spawnDist,
       this.y + Math.sin(offsetAngle) * spawnDist,
       this.dna.cloneWithMutation(),
-      childEnergy
+      childEnergy,
+      SimConfig.MIN_INTERDIVISION_INTERVAL
     );
   }
 

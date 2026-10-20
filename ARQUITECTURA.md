@@ -28,6 +28,8 @@ EvoLootIon/
     │   ├── DNA.ts                    # Genotipo: 5 categorías, stats, trade-offs y operador de mutación
     │   ├── Bacteria.ts               # Fenotipo: estado vital, quimiotaxis, combate y reproducción
     │   └── Nutrient.ts               # Sustrato mineral y detritus orgánico (cadáveres)
+    ├── i18n/
+    │   └── i18n.ts                   # Internacionalización (ES/EN extensible) y adaptación por edades (5-7 a 15+)
     └── render/
         └── ProceduralRenderer.ts     # Renderizado vectorial procedural en Canvas 2D y soporte LOD
 ```
@@ -43,9 +45,9 @@ flowchart TD
     A[requestAnimationFrame] --> B[Calcular dt acotado y FPS]
     B --> C{¿Simulación en pausa?}
     C -- No --> D[Sub-stepping según timeScale 1x/2x/4x]
-    D --> E[1. Spawn pasivo de nutrientes]
+    D --> E[1. Deriva suave del epicentro de luz y spawn pasivo de nutrientes]
     E --> F[2. Reconstruir gridNutrients y gridBacteria O_N Zero-GC]
-    F --> G[3. Bacteria.update: Esporulación, Quimiotaxis, Metabolismo, Toxinas, Predación, División]
+    F --> G[3. Bacteria.update: Esporulación, Fototaxis/Quimiotaxis, Auto-sombreado, Metabolismo, Toxinas, Predación, División]
     G --> H[4. Compactación in-place de bacterias muertas -> Crear Nutrient cadáver]
     H --> I[5. Añadir descendencia desde offspringBuffer]
     I --> J[6. Compactación in-place de nutrientes consumidos]
@@ -67,7 +69,7 @@ flowchart TD
 * **Decisión:** Extraer toda la geometría y dibujo vectorial a métodos estáticos en `src/render/ProceduralRenderer.ts`. Las clases en `src/models/` contienen exclusivamente estado numérico y lógica biológica.
 * **Consecuencias:**
   * Se cumple el Principio de Responsabilidad Única (SRP).
-  * El mismo método `ProceduralRenderer.renderBacteria()` se reutiliza tanto en el lienzo principal del ecosistema como en el mini-lienzo de vista previa del diseñador genético.
+  * El método `ProceduralRenderer.renderBacteria()` se utiliza en el lienzo principal del ecosistema y `ProceduralRenderer.renderMicroscopePreview()` proporciona una vista ampliada de alta definición sobre retícula de microscopio electrónico en el **Editor Genómico y Fenotípico** previo al inicio de la simulación.
   * El motor (`src/models/` + `src/core/SpatialHashGrid.ts`) queda listo para trasladarse a un **Web Worker** en segundo plano o ejecutarse en modo *headless* para pruebas automatizadas sin depender de `window` ni `HTMLCanvasElement`.
 
 ### ADR-02: Partición Espacial O(1) con Estrategia Zero-GC

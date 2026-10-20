@@ -77,16 +77,17 @@ npm run preview
 1. **Diseñador Genético y Previsualización:**
    * Cambia entre *Fotosintética* (Coco), *Saprófita* (Bacilo), *Predadora* (Espirilo) y *Fermentadora* (Diplococo) y verifica que el mini-canvas superior actualiza la forma en vivo.
    * Selecciona locomoción *Sésil* o interacción *Neutral* y comprueba que los controles deslizantes de velocidad o toxina se deshabilitan automáticamente y el coste basal/drag se recalcula.
-2. **Simulación y Controles del HUD:**
-   * Pulsa **Inocular Placa de Cultivo** para reiniciar con tu cepa.
+2. **Simulación, Poblaciones Rivales y Controles del HUD:**
+   * Ajusta el control deslizante **Poblaciones Rivales** (de `0` a `8`, por defecto `3`) o pulsa **Inocular Placa de Cultivo** para reiniciar con nuevas cepas rivales generadas al azar y con nombres taxonómicos procedurales.
+   * Observa en la placa el **epicentro de luz** (halo iluminado con contorno discontinuo) que aparece en una ubicación aleatoria y se desplaza suavemente.
    * Prueba los botones de velocidad (`1x`, `2x`, `4x`), **Pausar** y **+ Sustrato**.
-   * Haz clic o toca sobre cualquier bacteria en movimiento para abrir el **Inspector de Organismo** en la esquina inferior derecha y observar su energía, generación y estado (*Vegetativa*, *Toxina Activa* o *Endospora*).
+   * Haz clic o toca sobre cualquier bacteria en movimiento para abrir el **Inspector de Organismo** en la esquina inferior derecha y observar su nombre procedural, energía, generación y estado (*Vegetativa*, *Toxina Activa* o *Endospora*).
 
 ### 4.2. Validación de rendimiento (Zero-GC y 60 FPS)
 
 1. Pon la velocidad en `4x` y añade sustrato varias veces con **+ Sustrato** hasta superar las 400 bacterias.
 2. Verifica en el indicador **FPS** del HUD superior que la tasa se mantiene estable en torno a 60 FPS.
-3. Aleja el zoom con la rueda del ratón o pulsa **LOD Auto / LOD Bajo** para comprobar la transición al renderizado simplificado de alto rendimiento.
+3. Aleja el zoom con la rueda del ratón o alterna entre **Detalle: Auto**, **Detalle: Bajo** y **Detalle: Alto** para comprobar los modos de renderizado.
 
 ---
 

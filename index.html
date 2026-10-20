@@ -6,17 +6,26 @@
   <title>EvoLootIon — Simulador de Vida Artificial Microbiana</title>
   <style>
     :root {
-      --bg-dark: #070b14;
-      --bg-panel: rgba(15, 23, 42, 0.88);
-      --bg-card: rgba(30, 41, 59, 0.65);
-      --border: rgba(148, 163, 184, 0.16);
+      --bg-dark: #060a12;
+      --bg-editor: #080d18;
+      --bg-panel: rgba(13, 20, 36, 0.92);
+      --bg-card: rgba(17, 26, 46, 0.78);
+      --bg-card-inner: rgba(11, 17, 30, 0.85);
+      --border: rgba(148, 163, 184, 0.14);
+      --border-subtle: rgba(148, 163, 184, 0.09);
       --accent: #38bdf8;
-      --accent-glow: rgba(56, 189, 248, 0.25);
+      --accent-glow: rgba(56, 189, 248, 0.22);
+      --bio-green: #10b981;
+      --bio-green-bright: #34d399;
+      --bio-green-bg: rgba(16, 185, 129, 0.13);
+      --bio-green-border: rgba(52, 211, 153, 0.65);
       --positive: #4ade80;
       --warning: #fbbf24;
-      --danger: #f87171;
+      --danger: #f472b6;
+      --danger-red: #f87171;
       --text-main: #f1f5f9;
       --text-muted: #94a3b8;
+      --text-dim: #64748b;
       --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     }
@@ -37,14 +46,706 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* ==========================================================================
+       PASO PREVIO / MODAL: EDITOR GENÓMICO Y FENOTÍPICO
+       ========================================================================== */
+    .editor-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: radial-gradient(circle at 50% 0%, #0f1b31 0%, var(--bg-editor) 70%);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    .editor-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .editor-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8, 13, 24, 0.85);
+      backdrop-filter: blur(12px);
+      flex-shrink: 0;
+      gap: 16px;
+    }
+
+    .editor-title-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--bio-green-bright);
+      box-shadow: 0 0 12px var(--bio-green-bright);
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .editor-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .editor-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .editor-topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-return {
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(30, 41, 59, 0.65);
+      color: var(--text-main);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-return:hover {
+      background: rgba(51, 65, 85, 0.85);
+      border-color: rgba(148, 163, 184, 0.35);
+    }
+
+    .btn-return.hidden {
+      display: none;
+    }
+
+    .editor-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px 40px;
+    }
+
+    .editor-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .editor-left-col {
+      position: sticky;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .editor-right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    /* Tarjetas del Editor */
+    .editor-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .microscope-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .microscope-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--bio-green-bright);
+      flex-shrink: 0;
+    }
+
+    .strain-name-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      justify-content: flex-end;
+      min-width: 200px;
+    }
+
+    .strain-name-inline label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .strain-name-inline input[type="text"] {
+      max-width: 175px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #ecfdf5;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      border-radius: 8px;
+    }
+
+    .gen-badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.16);
+      color: var(--bio-green-bright);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      flex-shrink: 0;
+    }
+
+    .microscope-viewport {
+      position: relative;
+      width: 100%;
+      height: 220px;
+      border-radius: 12px;
+      background: #060b16;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      overflow: hidden;
+    }
+
+    #previewCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .microscope-overlay-meta {
+      position: absolute;
+      bottom: 10px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .taxonomy-pill {
+      background: rgba(6, 10, 18, 0.82);
+      border: 1px solid var(--border);
+      padding: 3px 9px;
+      border-radius: 6px;
+      color: #cbd5e1;
+      font-style: italic;
+    }
+
+    /* Cadena Codificante (ADN) */
+    .dna-strand-box {
+      background: var(--bg-card-inner);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dna-strand-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .dna-strand-dir {
+      font-family: var(--font-mono);
+      color: var(--bio-green-bright);
+      font-size: 11px;
+    }
+
+    .dna-strand-sequence {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--bio-green-bright);
+      word-break: break-all;
+      line-height: 1.4;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .codon-token {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.2);
+      transition: background 0.15s, transform 0.15s;
+      cursor: help;
+    }
+
+    .codon-token:hover {
+      background: rgba(16, 185, 129, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .codon-token.start-stop {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      border-color: rgba(56, 189, 248, 0.25);
+    }
+
+    .codon-token.quant {
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.1);
+      border-color: rgba(251, 191, 36, 0.25);
+    }
+
+    .codon-token.chromo {
+      color: #f472b6;
+      background: rgba(244, 114, 182, 0.1);
+      border-color: rgba(244, 114, 182, 0.25);
+    }
+
+    .codon-token.adapt {
+      color: #c084fc;
+      background: rgba(192, 132, 252, 0.12);
+      border-color: rgba(192, 132, 252, 0.35);
+    }
+
+    .codon-sep {
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    /* Bloque de Categoría + Atributo Dependiente Integrado */
+    .trait-category {
+      background: rgba(15, 23, 42, 0.48);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .linked-param-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      background: rgba(7, 11, 20, 0.72);
+      border: 1px solid rgba(52, 211, 153, 0.22);
+      border-radius: 10px;
+      padding: 10px 14px;
+      flex-wrap: wrap;
+    }
+
+    .linked-param-control {
+      flex: 1;
+      min-width: 210px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .linked-dna-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      border-radius: 8px;
+      padding: 5px 10px;
+      flex-shrink: 0;
+    }
+
+    .linked-dna-badge span.lbl {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .linked-dna-badge code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--bio-green-bright);
+    }
+
+    .tradeoff-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .tag-pro {
+      font-size: 10.5px;
+      color: #4ade80;
+      background: rgba(74, 222, 128, 0.1);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .tag-con {
+      font-size: 10.5px;
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.12);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* Balance Bioenergético */
+    .bio-balance-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .bio-balance-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #cbd5e1;
+    }
+
+    .efficiency-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.18);
+      color: var(--bio-green-bright);
+      border: 1px solid rgba(52, 211, 153, 0.35);
+    }
+
+    .efficiency-badge.warning {
+      background: rgba(251, 191, 36, 0.16);
+      color: var(--warning);
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+
+    .efficiency-badge.danger {
+      background: rgba(248, 113, 113, 0.16);
+      color: var(--danger-red);
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+
+    .bio-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+
+    .bio-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+    }
+
+    .bio-row .val-basal,
+    .bio-row .val-swim {
+      color: var(--warning);
+      font-weight: 600;
+    }
+
+    .bio-row .val-toxin {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    .bio-row-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 10px;
+      margin-top: 2px;
+      border-top: 1px solid var(--border);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .bio-row-total .val-total {
+      font-family: var(--font-mono);
+      color: var(--bio-green-bright);
+      font-size: 16px;
+    }
+
+    .pareto-note {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.6);
+      border-left: 3px solid var(--warning);
+      padding: 8px 10px;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .pareto-note strong {
+      color: var(--text-main);
+    }
+
+    /* Secciones de Selección de Categorías Biológicas por Botones */
+    .section-heading {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--bio-green-bright);
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .trait-category {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .trait-category-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .trait-category-title span.codon-hint {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+    }
+
+    .trait-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .trait-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .trait-btn {
+      appearance: none;
+      text-align: left;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 15px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      transition: all 0.16s ease;
+      position: relative;
+      color: var(--text-main);
+    }
+
+    .trait-btn:hover {
+      background: rgba(30, 41, 59, 0.75);
+      border-color: rgba(148, 163, 184, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .trait-btn.active {
+      background: var(--bio-green-bg);
+      border-color: var(--bio-green-border);
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.16), inset 0 0 12px rgba(16, 185, 129, 0.06);
+    }
+
+    .trait-btn-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .trait-btn-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .trait-btn.active .trait-btn-title {
+      color: #ecfdf5;
+    }
+
+    .trait-codon-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--text-dim);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .trait-btn.active .trait-codon-tag {
+      background: rgba(16, 185, 129, 0.22);
+      color: var(--bio-green-bright);
+      border-color: rgba(52, 211, 153, 0.4);
+    }
+
+    .trait-btn-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.38;
+    }
+
+    /* Parámetros cuantitativos */
+    .params-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .param-box {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .param-box.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .field-label span.val {
+      font-family: var(--font-mono);
+      color: var(--bio-green-bright);
+      font-size: 12px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(7, 11, 20, 0.9);
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--bio-green-bright);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--bio-green-bright);
+      cursor: pointer;
+    }
+
+    input[type="range"]:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .btn-deploy-large {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      background: linear-gradient(135deg, #059669 0%, #0284c7 100%);
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.28);
+      transition: transform 0.12s, filter 0.15s, box-shadow 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-deploy-large:hover {
+      filter: brightness(1.08);
+      box-shadow: 0 10px 28px rgba(16, 185, 129, 0.38);
+    }
+
+    .btn-deploy-large:active {
+      transform: scale(0.99);
+    }
+
+    /* ==========================================================================
+       VISTA PRINCIPAL DE SIMULACIÓN (PLACA DE CULTIVO + TELEMETRÍA)
+       ========================================================================== */
     .app-layout {
       display: grid;
-      grid-template-columns: 360px 1fr;
+      grid-template-columns: 340px 1fr;
       width: 100vw;
       height: 100vh;
     }
 
-    /* Sidebar: Diseñador Genético y Telemetría */
     .sidebar {
       background: var(--bg-panel);
       backdrop-filter: blur(14px);
@@ -71,6 +772,7 @@
       font-weight: 700;
       letter-spacing: -0.02em;
       background: linear-gradient(90deg, #38bdf8, #4ade80);
+      background-clip: text;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -91,8 +793,8 @@
     }
 
     .card-title {
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--accent);
@@ -101,106 +803,54 @@
       justify-content: space-between;
     }
 
-    .preview-box {
-      position: relative;
-      width: 100%;
-      height: 115px;
-      border-radius: 8px;
-      background: radial-gradient(circle at center, #13233f 0%, #090e1a 100%);
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    #previewCanvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    .cost-badges {
-      position: absolute;
-      bottom: 6px;
-      left: 8px;
-      right: 8px;
-      display: flex;
-      justify-content: space-between;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
-      pointer-events: none;
-    }
-
-    .cost-badge {
-      background: rgba(7, 11, 20, 0.78);
-      padding: 2px 6px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-    }
-
-    .form-grid {
+    .active-strain-summary {
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
 
-    .field-row {
+    .active-strain-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
       display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .field-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      display: flex;
+      align-items: center;
       justify-content: space-between;
     }
 
-    .field-label span.val {
+    .active-strain-taxonomy {
+      font-size: 11px;
+      font-style: italic;
+      color: var(--text-muted);
+    }
+
+    .active-dna-pill {
       font-family: var(--font-mono);
-      color: var(--text-main);
-    }
-
-    select, input[type="text"] {
-      width: 100%;
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.9);
-      color: var(--text-main);
-      font-size: 12px;
-      outline: none;
-    }
-
-    select:focus, input[type="text"]:focus {
-      border-color: var(--accent);
-    }
-
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
-
-    .btn-primary {
-      width: 100%;
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: none;
-      background: linear-gradient(135deg, #0284c7, #10b981);
-      color: #fff;
+      font-size: 11px;
       font-weight: 600;
-      font-size: 13px;
+      color: var(--bio-green-bright);
+      background: rgba(7, 11, 20, 0.8);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      border-radius: 6px;
+      padding: 6px 8px;
+      word-break: break-all;
+    }
+
+    .btn-open-editor {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--bio-green-border);
+      background: var(--bio-green-bg);
+      color: var(--bio-green-bright);
+      font-weight: 600;
+      font-size: 12px;
       cursor: pointer;
-      transition: transform 0.1s, opacity 0.15s;
+      transition: background 0.15s, transform 0.1s;
     }
 
-    .btn-primary:hover {
-      opacity: 0.94;
-    }
-
-    .btn-primary:active {
-      transform: scale(0.98);
+    .btn-open-editor:hover {
+      background: rgba(16, 185, 129, 0.22);
     }
 
     /* Zona Principal del Simulador */
@@ -224,7 +874,6 @@
       cursor: grabbing;
     }
 
-    /* Barra superior flotante de controles */
     .top-hud {
       position: absolute;
       top: 14px;
@@ -241,6 +890,7 @@
     .hud-group {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 6px;
       background: var(--bg-panel);
       backdrop-filter: blur(10px);
@@ -272,6 +922,11 @@
       color: var(--accent);
     }
 
+    .hud-btn.dna-btn {
+      border-color: rgba(52, 211, 153, 0.45);
+      color: var(--bio-green-bright);
+    }
+
     .kpi-pill {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -295,7 +950,7 @@
       align-items: center;
       justify-content: space-between;
       font-size: 11px;
-      padding: 5px 8px;
+      padding: 6px 8px;
       border-radius: 6px;
       background: rgba(15, 23, 42, 0.65);
       border: 1px solid var(--border);
@@ -323,11 +978,12 @@
       font-family: var(--font-mono);
       font-size: 10px;
       color: var(--text-muted);
+      flex-shrink: 0;
     }
 
     #chartCanvas {
       width: 100%;
-      height: 85px;
+      height: 110px;
       display: block;
       border-radius: 6px;
       background: rgba(7, 11, 20, 0.65);
@@ -339,7 +995,7 @@
       position: absolute;
       bottom: 14px;
       right: 14px;
-      width: 270px;
+      width: 345px;
       background: var(--bg-panel);
       backdrop-filter: blur(12px);
       border: 1px solid var(--accent);
@@ -347,7 +1003,7 @@
       padding: 12px;
       display: none;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
       font-size: 11px;
       pointer-events: auto;
     }
@@ -356,154 +1012,772 @@
       display: flex;
     }
 
+    .inspector-dna {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--bio-green-bright);
+      background: rgba(6, 10, 18, 0.85);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+      border-radius: 6px;
+      padding: 5px 7px;
+      word-break: break-all;
+    }
+
     .inspector-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 4px 8px;
+      gap: 5px 10px;
       font-family: var(--font-mono);
       font-size: 10px;
       color: var(--text-muted);
+      align-items: center;
     }
 
     .inspector-grid span b {
       color: var(--text-main);
     }
 
-    @media (max-width: 860px) {
+    .inspector-energy-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .inspector-energy-track {
+      flex: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+
+    .inspector-energy-fill {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #10b981, #38bdf8);
+      transition: width 0.12s ease-out, background 0.2s ease;
+    }
+
+    /* Selectores de Idioma (ES/EN) y Edad (5-7, 8-10, 11-14, 15+) */
+    .selector-pill-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 5px;
+      flex-shrink: 0;
+    }
+
+    .selector-pill-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 0 6px 0 5px;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .selector-pill-btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      line-height: 1.1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .selector-pill-btn:hover {
+      color: var(--text-main);
+      background: rgba(51, 65, 85, 0.55);
+    }
+
+    .selector-pill-btn.active {
+      background: var(--bio-green-bg);
+      color: var(--bio-green-bright);
+      border-color: var(--bio-green-border);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    }
+
+    .selector-pill-btn[data-lang-btn].active {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-color: rgba(56, 189, 248, 0.55);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+    }
+
+    @media (max-width: 1024px) {
+      .editor-container {
+        grid-template-columns: 1fr;
+      }
+      .editor-left-col {
+        position: static;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .editor-topbar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px 16px;
+        gap: 10px;
+      }
+      .editor-title-group {
+        align-items: center;
+        gap: 10px;
+      }
+      .status-dot {
+        margin-top: 0;
+      }
+      .editor-title {
+        font-size: 17px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .editor-subtitle {
+        display: none;
+      }
+      .editor-topbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .editor-body {
+        padding: 16px 16px 32px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .trait-grid-2,
+      .trait-grid-3,
+      .params-grid {
+        grid-template-columns: 1fr;
+      }
       .app-layout {
         grid-template-columns: 1fr;
-        grid-template-rows: 55vh 45vh;
+        grid-template-rows: 1fr;
+        height: 100dvh;
       }
       .viewport {
         grid-row: 1;
-        height: 55vh;
+        height: 100dvh;
       }
       .sidebar {
-        grid-row: 2;
-        height: 45vh;
-        border-right: none;
-        border-top: 1px solid var(--border);
+        position: fixed;
+        left: 14px;
+        right: 14px;
+        bottom: max(14px, env(safe-area-inset-bottom));
+        width: auto;
+        height: auto;
+        overflow: visible;
+        padding: 0;
+        gap: 0;
+        border: none;
+        background: none;
+        backdrop-filter: none;
+        pointer-events: none;
+        z-index: 20;
+      }
+      .sidebar > .brand-header,
+      .sidebar > .population-dynamics-card,
+      .founder-strain-card .card-title,
+      .active-strain-name,
+      .active-strain-taxonomy,
+      .active-dna-pill {
+        display: none;
+      }
+      .sidebar > .founder-strain-card {
+        padding: 0;
+        gap: 0;
+        border: none;
+        background: none;
+        pointer-events: none;
+      }
+      .active-strain-summary {
+        gap: 0;
+      }
+      .btn-open-editor {
+        pointer-events: auto;
       }
     }
   </style>
 </head>
 <body>
+  <!-- ========================================================================
+       PASO PREVIO: EDITOR GENÓMICO Y FENOTÍPICO
+       ======================================================================== -->
+  <section class="editor-overlay" id="genomeEditorModal" aria-label="Editor Genómico y Fenotípico">
+    <header class="editor-topbar">
+      <div class="editor-title-group">
+        <span class="status-dot"></span>
+        <div>
+          <h1 class="editor-title" id="lblEditorTitle">Editor Genómico y Fenotípico</h1>
+          <p class="editor-subtitle" id="lblEditorSubtitle">Diseña la cadena de ADN inicial de tu cepa antes de inocular la placa de cultivo</p>
+        </div>
+      </div>
+      <div class="editor-topbar-actions">
+        <!-- Selector de Edad en bloques de 3 años (5 a 15+) -->
+        <div class="selector-pill-group" role="group" aria-label="Selector de edad">
+          <span class="selector-pill-label">🎂 <span class="js-age-label">Edad</span>:</span>
+          <button type="button" class="selector-pill-btn" data-age-btn="5-7">5-7</button>
+          <button type="button" class="selector-pill-btn" data-age-btn="8-10">8-10</button>
+          <button type="button" class="selector-pill-btn active" data-age-btn="11-14">11-14</button>
+          <button type="button" class="selector-pill-btn" data-age-btn="15+">15+</button>
+        </div>
+
+        <!-- Selector de Idioma ES / EN -->
+        <div class="selector-pill-group" role="group" aria-label="Selector de idioma">
+          <span class="selector-pill-label">🌐</span>
+          <button type="button" class="selector-pill-btn active" data-lang-btn="es">ES</button>
+          <button type="button" class="selector-pill-btn" data-lang-btn="en">EN</button>
+        </div>
+
+        <button type="button" class="btn-return hidden" id="btnCloseEditor">Volver al Cultivo &times;</button>
+      </div>
+    </header>
+
+    <div class="editor-body">
+      <div class="editor-container">
+        <!-- Columna Izquierda (Protagonismo Visual del Fenotipo, ADN y Balance ATP) -->
+        <div class="editor-left-col">
+          <!-- Visor de Microscopio Electrónico, Nombre de la Cepa y Cadena Codificante -->
+          <div class="editor-card">
+            <div class="microscope-header">
+              <span class="microscope-label" id="lblMicroscopeTitle">🔬 Microscopio Electrónico</span>
+              <div class="strain-name-inline">
+                <label for="strainName" id="lblStrainName">Nombre:</label>
+                <input type="text" id="strainName" value="Súper Bacilo" maxlength="26" placeholder="Nombre de tu bacteria" />
+                <span class="gen-badge" id="editorGenBadge">Gen #0</span>
+              </div>
+            </div>
+
+            <div class="microscope-viewport">
+              <canvas id="previewCanvas"></canvas>
+              <div class="microscope-overlay-meta">
+                <span class="taxonomy-pill" id="previewTaxonomyName">Saprobacillus flagelbacfissa</span>
+                <span class="taxonomy-pill" id="previewTraitSummary">Bacilo · Split 142E</span>
+              </div>
+            </div>
+
+            <!-- Selector de Color integrado junto al Microscopio -->
+            <div class="linked-param-bar">
+              <div class="linked-param-control">
+                <label class="field-label" for="rngHue">
+                  <span id="lblParamHue">🎨 Color / Pigmento de tu Bacteria</span>
+                  <span class="val" id="valHue">155°</span>
+                </label>
+                <input type="range" id="rngHue" min="0" max="355" step="5" value="155" />
+              </div>
+              <div class="linked-dna-badge">
+                <span class="lbl" id="lblColorGeneBadge">Gen Color</span>
+                <code id="locusHue">H155</code>
+              </div>
+            </div>
+
+            <div class="dna-strand-box">
+              <div class="dna-strand-header">
+                <span id="lblCodingStrandTitle">🧬 Cadena Codificante Completa (ADN)</span>
+                <span class="dna-strand-dir">5' &rarr; 3'</span>
+              </div>
+              <div class="dna-strand-sequence" id="dnaStrandDisplay">
+                ATG-SAP-S9-FLA-V30-GRP-A40-BIN-P11-BAC-T20-NON-H155-TAG
+              </div>
+            </div>
+          </div>
+
+          <!-- Balance Bioenergético (Ley de Kleiber y Regla de Pareto) -->
+          <div class="editor-card">
+            <div class="bio-balance-header">
+              <span class="bio-balance-title" id="lblBioBalanceTitle">⚡ Balance de Energía (ATP)</span>
+              <span class="efficiency-badge" id="badgeEfficiency">Alta Eficiencia</span>
+            </div>
+
+            <div class="bio-rows">
+              <div class="bio-row">
+                <span id="lblCostBasal">Metabolismo Basal (Cuerpo + Pared + Mutación):</span>
+                <span class="val-basal" id="badgeBasal">1.10 ATP/s</span>
+              </div>
+              <div class="bio-row">
+                <span id="lblCostSwim">Gasto al Nadar a Velocidad Crucero:</span>
+                <span class="val-swim" id="badgeDrag">0.23 ATP/s</span>
+              </div>
+              <div class="bio-row">
+                <span id="lblCostToxin">Fábrica de Veneno / Imanes Químicos:</span>
+                <span class="val-toxin" id="badgeToxinCost">0.40 ATP/s</span>
+              </div>
+              <div class="bio-row-total">
+                <span id="lblCostTotal">Consumo Total Estimado:</span>
+                <span class="val-total" id="badgeTotalCost">1.73 ATP/s</span>
+              </div>
+            </div>
+
+            <div class="pareto-note" id="lblParetoNote">
+              💡 <strong>Regla de la Naturaleza (Pareto):</strong> Si haces una bacteria gigante, rapidísima y llena de armas, ¡gastará tanta energía por segundo que morirá de hambre si escasea la comida!
+            </div>
+          </div>
+
+          <!-- Configuración de la Placa de Cultivo -->
+          <div class="editor-card">
+            <div class="bio-balance-header">
+              <span class="bio-balance-title" id="lblCultureConditionsTitle">🧫 Condiciones de la Placa de Cultivo</span>
+            </div>
+            <div class="params-grid">
+              <div class="param-box">
+                <label class="field-label" for="rngInitialPop">
+                  <span id="lblParamInitialPop">Ejemplares por Cepa</span>
+                  <span class="val" id="valInitialPop">6 bacterias</span>
+                </label>
+                <input type="range" id="rngInitialPop" min="3" max="10" step="1" value="6" />
+              </div>
+
+              <div class="param-box">
+                <label class="field-label" for="rngRivals">
+                  <span id="lblParamRivals">Cepas Rivales</span>
+                  <span class="val" id="valRivals">3 cepas</span>
+                </label>
+                <input type="range" id="rngRivals" min="0" max="8" step="1" value="3" />
+              </div>
+            </div>
+
+            <button type="button" class="btn-deploy-large" id="btnDeploy">
+              <span id="lblBtnDeploy">🚀 ¡Inocular Placa de Cultivo y Empezar!</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Columna Derecha (Categorías Biológicas + Sus Atributos Dependientes y Secuencia de ADN) -->
+        <div class="editor-right-col">
+          <div class="section-heading">1. Diseña los Genes y Órganos de tu Bacteria</div>
+
+          <!-- A. Metabolismo, Alimentación y Tamaño -->
+          <div class="trait-category" data-trait-group="metabolism">
+            <div class="trait-category-title">
+              <span>A. ¿Cómo se alimenta y qué forma tiene? (Metabolismo y Tamaño)</span>
+              <span class="codon-hint">Forma Celular</span>
+            </div>
+            <div class="trait-grid-2">
+              <button type="button" class="trait-btn" data-trait="metabolism" data-value="photosynthetic">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">☀️ Fotosintética (Coco)</span>
+                  <span class="trait-codon-tag">PHO</span>
+                </div>
+                <span class="trait-btn-desc">Toma energía de la luz solar como las plantas. Cuerpo redondo.</span>
+              </button>
+
+              <button type="button" class="trait-btn active" data-trait="metabolism" data-value="saprophyte">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🌿 Saprófita (Bacilo)</span>
+                  <span class="trait-codon-tag">SAP</span>
+                </div>
+                <span class="trait-btn-desc">Recicladora: come nutrientes sueltos y saca +55% de restos orgánicos.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="metabolism" data-value="predator">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🩸 Predadora (Espirilo)</span>
+                  <span class="trait-codon-tag">PRE</span>
+                </div>
+                <span class="trait-btn-desc">Cazadora activa: persigue y muerde a bacterias de otras tribus.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="metabolism" data-value="fermenter">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🫧 Fermentadora (Diplococo)</span>
+                  <span class="trait-codon-tag">FER</span>
+                </div>
+                <span class="trait-btn-desc">Glotona de azúcares: obtiene +45% de energía de cada bocado.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="metabolism" data-value="chemolithotroph">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🌋 Quimiolitótrofa (Arquea)</span>
+                  <span class="trait-codon-tag">QUI</span>
+                </div>
+                <span class="trait-btn-desc">Come minerales de las rocas sin necesitar sol y resiste un 20% el veneno.</span>
+              </button>
+            </div>
+
+            <!-- Atributo vinculado: Tamaño Celular (S) -->
+            <div class="linked-param-bar">
+              <div class="linked-param-control">
+                <label class="field-label" for="rngSize">
+                  <span>📏 Tamaño del Cuerpo (Más grande = más reserva, pero gasta más energía)</span>
+                  <span class="val" id="valSize">9.0 px</span>
+                </label>
+                <input type="range" id="rngSize" min="5.5" max="13.5" step="0.5" value="9.0" />
+              </div>
+              <div class="linked-dna-badge">
+                <span class="lbl">Secuencia ADN</span>
+                <code id="locusMetabolism">SAP-S9</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- B. Locomoción, Apéndices Cinéticos y Velocidad -->
+          <div class="trait-category" data-trait-group="motility">
+            <div class="trait-category-title">
+              <span>B. ¿Cómo se mueve por el agua? (Locomoción y Velocidad)</span>
+              <span class="codon-hint">Propulsión Realista</span>
+            </div>
+            <div class="trait-grid-2">
+              <button type="button" class="trait-btn" data-trait="motility" data-value="sessile">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">⚓ Sésil (Anclada)</span>
+                  <span class="trait-codon-tag">SES</span>
+                </div>
+                <span class="trait-btn-desc">No se mueve (Coste 0 ATP/s) y su biofilm resiste +15% mordiscos.</span>
+              </button>
+
+              <button type="button" class="trait-btn active" data-trait="motility" data-value="flagellated">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">〰️ Flagelada (Motor Turbo)</span>
+                  <span class="trait-codon-tag">FLA</span>
+                </div>
+                <span class="trait-btn-desc">Látigo rotatorio: alcanza <strong>+35% más velocidad punta</strong>, pero consume más ATP.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="motility" data-value="ciliated">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">✴️ Ciliada (Remos Ágiles)</span>
+                  <span class="trait-codon-tag">CIL</span>
+                </div>
+                <span class="trait-btn-desc">Pelillos que ahorran mucha energía y giran bien, pero con <strong>menor velocidad máxima (-20%)</strong>.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="motility" data-value="spirochete">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🌀 Espiroqueta (Sacacorchos)</span>
+                  <span class="trait-codon-tag">AXL</span>
+                </div>
+                <span class="trait-btn-desc">Avanza girando en espiral (<strong>+10% velocidad</strong>) y esquiva un 25% de los mordiscos.</span>
+              </button>
+            </div>
+
+            <!-- Atributo vinculado: Velocidad (V) -->
+            <div class="linked-param-bar">
+              <div class="linked-param-control">
+                <label class="field-label" for="rngSpeed">
+                  <span>🚀 Potencia del Motor (Velocidad Efectiva Real)</span>
+                  <span class="val" id="valSpeed">3.0 vel (Flagelo x1.35)</span>
+                </label>
+                <input type="range" id="rngSpeed" min="0.6" max="4.0" step="0.2" value="2.2" />
+              </div>
+              <div class="linked-dna-badge">
+                <span class="lbl">Secuencia ADN</span>
+                <code id="locusMotility">FLA-V30</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- C. Estructura de Pared y Protección -->
+          <div class="trait-category" data-trait-group="wall">
+            <div class="trait-category-title">
+              <span>C. ¿Qué escudo protege su cuerpo? (Pared Celular y Armadura)</span>
+              <span class="codon-hint">Defensa</span>
+            </div>
+            <div class="trait-grid-2">
+              <button type="button" class="trait-btn" data-trait="wall" data-value="gram_negative">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🛡️ Gram-Negativa</span>
+                  <span class="trait-codon-tag">GRN</span>
+                </div>
+                <span class="trait-btn-desc">Doble piel ligera: no añade peso y filtra un 28% de los venenos.</span>
+              </button>
+
+              <button type="button" class="trait-btn active" data-trait="wall" data-value="gram_positive">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🧱 Gram-Positiva</span>
+                  <span class="trait-codon-tag">GRP</span>
+                </div>
+                <span class="trait-btn-desc">Muro grueso y resistente, aunque mantenerlo cuesta un poco más de energía.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="wall" data-value="capsule">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🫧 Cápsula Mucosa</span>
+                  <span class="trait-codon-tag">CAP</span>
+                </div>
+                <span class="trait-btn-desc">Burbuja resbaladiza: reduce a la mitad (-50%) el daño de mordiscos y toxinas.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="wall" data-value="s_layer">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">💎 Capa S Cristalina</span>
+                  <span class="trait-codon-tag">SLY</span>
+                </div>
+                <span class="trait-btn-desc">Malla geométrica brillante: rebota el 20% del mordisco y abarata la armadura.</span>
+              </button>
+            </div>
+
+            <!-- Atributo vinculado: Armadura (A) -->
+            <div class="linked-param-bar">
+              <div class="linked-param-control">
+                <label class="field-label" for="rngArmor">
+                  <span>🛡️ Dureza de la Armadura (Reduce daño recibido)</span>
+                  <span class="val" id="valArmor">4.0</span>
+                </label>
+                <input type="range" id="rngArmor" min="0" max="10" step="0.5" value="4.0" />
+              </div>
+              <div class="linked-dna-badge">
+                <span class="lbl">Secuencia ADN</span>
+                <code id="locusWall">GRP-A40</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- D. Estrategia Reproductiva y Supervivencia -->
+          <div class="trait-category" data-trait-group="reproduction">
+            <div class="trait-category-title">
+              <span>D. ¿Cómo tiene bebés y detecta el entorno? (Reproducción y Sensores)</span>
+              <span class="codon-hint">Supervivencia</span>
+            </div>
+            <div class="trait-grid-2">
+              <button type="button" class="trait-btn active" data-trait="reproduction" data-value="binary_fission">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">➗ Fisión Binaria</span>
+                  <span class="trait-codon-tag">BIN</span>
+                </div>
+                <span class="trait-btn-desc">Se estira y se divide por la mitad en dos gemelas (50% / 50% energía).</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="reproduction" data-value="budding">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🌱 Gemación</span>
+                  <span class="trait-codon-tag">GEM</span>
+                </div>
+                <span class="trait-btn-desc">Le sale un brote pequeño: la mamá se queda con el 65% de la energía.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="reproduction" data-value="sporulation">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🪨 Esporulación</span>
+                  <span class="trait-codon-tag">ESP</span>
+                </div>
+                <span class="trait-btn-desc">Si no hay comida, se convierte en una semilla de piedra casi inmortal.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="reproduction" data-value="conjugation">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🔗 Conjugación (Pili)</span>
+                  <span class="trait-codon-tag">CON</span>
+                </div>
+                <span class="trait-btn-desc">Conecta una antena con sus hermanas cercanas y se dan energía (+0.35 ATP/s).</span>
+              </button>
+            </div>
+
+            <!-- Atributo vinculado: Alcance Sensorial (P) -->
+            <div class="linked-param-bar">
+              <div class="linked-param-control">
+                <label class="field-label" for="rngPerception">
+                  <span>📡 Quimiotaxis / Más alcance cuesta más energía basal</span>
+                  <span class="val" id="valPerception">110 px</span>
+                </label>
+                <input type="range" id="rngPerception" min="60" max="150" step="10" value="110" />
+              </div>
+              <div class="linked-dna-badge">
+                <span class="lbl">Secuencia ADN</span>
+                <code id="locusReproduction">BIN-P11</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- E. Interacción Ecológica y Guerra Química -->
+          <div class="trait-category" data-trait-group="interaction">
+            <div class="trait-category-title">
+              <span>E. ¿Usa poderes químicos? (Interacción y Potencia de Toxina)</span>
+              <span class="codon-hint">Química</span>
+            </div>
+            <div class="trait-grid-2">
+              <button type="button" class="trait-btn" data-trait="interaction" data-value="neutral">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🤝 Pacífica / Neutral</span>
+                  <span class="trait-codon-tag">NEU</span>
+                </div>
+                <span class="trait-btn-desc">No gasta energía en venenos. ¡Guarda todo su ATP para crecer y dividirse!</span>
+              </button>
+
+              <button type="button" class="trait-btn active" data-trait="interaction" data-value="bacteriocins">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🧪 Nube de Bacteriocinas</span>
+                  <span class="trait-codon-tag">BAC</span>
+                </div>
+                <span class="trait-btn-desc">Emite un halo de veneno continuo que debilita a las bacterias enemigas.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="interaction" data-value="quorum_sensing">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">📡 Quorum Sensing (Equipo)</span>
+                  <span class="trait-codon-tag">QUO</span>
+                </div>
+                <span class="trait-btn-desc">Solo activa el veneno cuando se junta un grupo de 3 o más amigas.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="interaction" data-value="siderophores">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🧲 Sideróforos (Imán)</span>
+                  <span class="trait-codon-tag">SID</span>
+                </div>
+                <span class="trait-btn-desc">Lanza moléculas magnéticas que atraen la comida cercana hacia ella.</span>
+              </button>
+            </div>
+
+            <!-- Atributo vinculado: Potencia de Toxina (T) -->
+            <div class="linked-param-bar">
+              <div class="linked-param-control">
+                <label class="field-label" for="rngToxin">
+                  <span>🧪 Potencia del Veneno Químico</span>
+                  <span class="val" id="valToxin">2.0</span>
+                </label>
+                <input type="range" id="rngToxin" min="0.5" max="4.5" step="0.2" value="2.0" />
+              </div>
+              <div class="linked-dna-badge">
+                <span class="lbl">Secuencia ADN</span>
+                <code id="locusInteraction">BAC-T20</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- F. Atributos Únicos / Súper Mutaciones (Con Ventaja y Penalización) -->
+          <div class="trait-category" data-trait-group="adaptation">
+            <div class="trait-category-title">
+              <span>F. ¡Súper Mutaciones Únicas! (Elige un órgano especial con su ventaja y su coste)</span>
+              <span class="codon-hint" id="locusAdaptation">Gen: NON</span>
+            </div>
+            <div class="trait-grid-2">
+              <button type="button" class="trait-btn active" data-trait="adaptation" data-value="none">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">⚖️ Sin Mutación Extra</span>
+                  <span class="trait-codon-tag">NON</span>
+                </div>
+                <span class="trait-btn-desc">Cuerpo clásico ligero, sin gastos ni penalizaciones extra.</span>
+                <div class="tradeoff-tags">
+                  <span class="tag-pro">✅ +0 ATP/s extra</span>
+                </div>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="adaptation" data-value="claws">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🦀 Pinzas Quitinosas</span>
+                  <span class="trait-codon-tag">PIN</span>
+                </div>
+                <span class="trait-btn-desc">Tenazas frontales que atrapan a la presa para que no escape.</span>
+                <div class="tradeoff-tags">
+                  <span class="tag-pro">✅ +45% daño y frena presas</span>
+                  <span class="tag-con">⚠️ Pesadas: -20% velocidad y +0.28 ATP/s</span>
+                </div>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="adaptation" data-value="giant_maw">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">👄 Gran Boca (Citostoma)</span>
+                  <span class="trait-codon-tag">BOC</span>
+                </div>
+                <span class="trait-btn-desc">Boca gigante con colmillos para tragar desde más lejos.</span>
+                <div class="tradeoff-tags">
+                  <span class="tag-pro">✅ +25% energía al comer</span>
+                  <span class="tag-con">⚠️ Punto débil: -25% armadura y +0.22 ATP/s</span>
+                </div>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="adaptation" data-value="spikes">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🌵 Pinchos Calcáreos</span>
+                  <span class="trait-codon-tag">PNC</span>
+                </div>
+                <span class="trait-btn-desc">Corona de espinas que pincha a cualquiera que se acerque o la muerda.</span>
+                <div class="tradeoff-tags">
+                  <span class="tag-pro">✅ Devuelve 40% del daño</span>
+                  <span class="tag-con">⚠️ Roce en el agua (+35% coste nado)</span>
+                </div>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="adaptation" data-value="bioluminescence">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">💡 Bioluminiscencia</span>
+                  <span class="trait-codon-tag">LUZ</span>
+                </div>
+                <span class="trait-btn-desc">Brilla en la oscuridad: da luz propia y deslumbra a los cazadores.</span>
+                <div class="tradeoff-tags">
+                  <span class="tag-pro">✅ Luz propia y -28% mordiscos</span>
+                  <span class="tag-con">⚠️ Brillar gasta +0.36 ATP/s</span>
+                </div>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="adaptation" data-value="suction_pore">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🎯 Trompa Ventosa</span>
+                  <span class="trait-codon-tag">VEN</span>
+                </div>
+                <span class="trait-btn-desc">Trompa elástica que aspira las bolitas de comida cercanas.</span>
+                <div class="tradeoff-tags">
+                  <span class="tag-pro">✅ Aspira comida a distancia</span>
+                  <span class="tag-con">⚠️ +15% coste para dividirse</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       VISTA DE CULTIVO Y SIMULACIÓN EN VIVO
+       ======================================================================== -->
   <div class="app-layout">
-    <!-- Panel Lateral: Diseñador de Cepa y Estadísticas -->
+    <!-- Panel Lateral: Resumen de Cepa Activa y Telemetría Lotka-Volterra -->
     <aside class="sidebar">
       <div class="brand-header">
         <div>
           <div class="brand-title">EvoLootIon</div>
-          <div class="brand-subtitle">Simulador Evolutivo Microbiano</div>
+          <div class="brand-subtitle" id="lblBrandSubtitle">Simulador Evolutivo Microbiano</div>
         </div>
-        <span style="font-family: var(--font-mono); font-size: 11px; color: var(--positive);">v2.0 Argon</span>
+        <span id="lblVersionBadge" style="font-family: var(--font-mono); font-size: 11px; color: var(--positive);">v2.1 Genoma</span>
       </div>
 
-      <!-- Vista Previa Procedural de la Cepa -->
-      <div class="card">
+      <!-- Resumen de la Cepa Inoculada + Acceso al Editor -->
+      <div class="card founder-strain-card">
         <div class="card-title">
-          <span>Fenotipo &amp; Costes (Kleiber)</span>
-          <span id="previewTraitSummary" style="font-size: 10px; color: var(--text-muted);">Bacilo</span>
+          <span id="lblFounderStrainCard">Cepa Fundadora Inoculada</span>
+          <span id="sidebarGenBadge" style="font-family: var(--font-mono); color: var(--bio-green-bright);">Gen #0</span>
         </div>
-        <div class="preview-box">
-          <canvas id="previewCanvas"></canvas>
-          <div class="cost-badges">
-            <span class="cost-badge" id="badgeBasal">Basal: 1.10/s</span>
-            <span class="cost-badge" id="badgeDrag">Drag: 0.19</span>
+        <div class="active-strain-summary">
+          <div class="active-strain-name">
+            <span id="activeStrainTitle">Súper Bacilo</span>
           </div>
-        </div>
-
-        <div class="form-grid">
-          <div class="field-row">
-            <label class="field-label" for="strainName">Nombre de tu Cepa</label>
-            <input type="text" id="strainName" value="Jugador Alpha" maxlength="26" />
-          </div>
-
-          <!-- Las 5 Categorías Biológicas -->
-          <div class="field-row">
-            <label class="field-label" for="selMetabolism">1. Metabolismo y Alimentación</label>
-            <select id="selMetabolism">
-              <option value="saprophyte" selected>Saprófita (Detritívora — Bonus Cadáveres)</option>
-              <option value="photosynthetic">Fotosintética (Energía Pasiva Solar)</option>
-              <option value="predator">Predadora / Fagocítica (Caza Activa)</option>
-              <option value="fermenter">Fermentadora (Asimilación Rápida x1.35)</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label class="field-label" for="selMotility">2. Locomoción y Movilidad</label>
-            <select id="selMotility">
-              <option value="flagellated" selected>Flagelada (Run &amp; Tumble Rápido)</option>
-              <option value="ciliated">Ciliada (Giro Suave, Bajo Coste)</option>
-              <option value="sessile">Sésil / Biofilm (Inmóvil, Gasto 0)</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label class="field-label" for="selWall">3. Estructura y Pared Celular</label>
-            <select id="selWall">
-              <option value="gram_negative">Gram-Negativa (Doble Membrana Anti-Toxina)</option>
-              <option value="gram_positive">Gram-Positiva (Pared Gruesa Peptidoglicano)</option>
-              <option value="capsule" selected>Cápsula Mucosa (Evasión Fagocitosis/Toxina)</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label class="field-label" for="selReproduction">4. Estrategia Reproductiva</label>
-            <select id="selReproduction">
-              <option value="binary_fission" selected>Fisión Binaria Simétrica (50% / 50%)</option>
-              <option value="budding">Gemación Polar (Madre 65% / Hija 35%)</option>
-              <option value="sporulation">Capacidad de Esporulación (Quiste Latente)</option>
-            </select>
-          </div>
-
-          <div class="field-row">
-            <label class="field-label" for="selInteraction">5. Interacción y Guerra Química</label>
-            <select id="selInteraction">
-              <option value="bacteriocins">Bacteriocinas (Emisión Continua)</option>
-              <option value="quorum_sensing" selected>Quorum Sensing (Ataque Colectivo)</option>
-              <option value="neutral">Neutral / Simbiótica (Sin Gasto Químico)</option>
-            </select>
-          </div>
-
-          <!-- Genes Cuantitativos -->
-          <div class="field-row">
-            <label class="field-label">Tamaño Celular (Radio) <span class="val" id="valSize">8.5 px</span></label>
-            <input type="range" id="rngSize" min="5.5" max="13.5" step="0.5" value="8.5" />
-          </div>
-
-          <div class="field-row">
-            <label class="field-label">Velocidad Máxima <span class="val" id="valSpeed">2.4</span></label>
-            <input type="range" id="rngSpeed" min="0.6" max="4.0" step="0.2" value="2.4" />
-          </div>
-
-          <div class="field-row">
-            <label class="field-label">Armadura de Membrana <span class="val" id="valArmor">4.0</span></label>
-            <input type="range" id="rngArmor" min="0" max="10" step="0.5" value="4.0" />
-          </div>
-
-          <div class="field-row">
-            <label class="field-label">Potencia Bacteriocina <span class="val" id="valToxin">2.2</span></label>
-            <input type="range" id="rngToxin" min="0.5" max="4.5" step="0.2" value="2.2" />
-          </div>
-
-          <div class="field-row">
-            <label class="field-label">Pigmento Genético (Hue) <span class="val" id="valHue">195°</span></label>
-            <input type="range" id="rngHue" min="0" max="355" step="5" value="195" />
-          </div>
-
-          <button class="btn-primary" id="btnDeploy">Inocular Placa de Cultivo (Reiniciar)</button>
+          <div class="active-strain-taxonomy" id="activeStrainTaxonomy">Saprobacillus flagelbacfissa</div>
+          <div class="active-dna-pill" id="activeStrainDna">ATG-SAP-FLA-GRP-BIN-BAC-S9V22A40T20-H155-TAG</div>
+          <button type="button" class="btn-open-editor" id="btnOpenEditorSidebar">
+            🧬 Abrir Editor Genómico / Reinocular
+          </button>
         </div>
       </div>
 
       <!-- Dinámica Poblacional (Lotka-Volterra) -->
-      <div class="card">
+      <div class="card population-dynamics-card" style="flex: 1; min-height: 0;">
         <div class="card-title">
-          <span>Dinámica de Poblaciones</span>
+          <span id="lblPopDynamicsCard">Dinámica de Poblaciones</span>
           <span id="lblSimTime" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">0.0s</span>
         </div>
-        <canvas id="chartCanvas" width="300" height="85"></canvas>
-        <div class="lineage-list" id="lineageList"></div>
+        <canvas id="chartCanvas" width="300" height="110"></canvas>
+        <div class="lineage-list" id="lineageList" style="overflow-y: auto; flex: 1;"></div>
       </div>
     </aside>
 
@@ -511,22 +1785,27 @@
     <main class="viewport">
       <div class="top-hud">
         <div class="hud-group">
+          <button class="hud-btn dna-btn" id="btnOpenEditorHud">🧬 Editor ADN</button>
           <button class="hud-btn" id="btnPause">Pausar</button>
           <button class="hud-btn active" data-speed="1">1x</button>
           <button class="hud-btn" data-speed="2">2x</button>
           <button class="hud-btn" data-speed="4">4x</button>
           <button class="hud-btn" id="btnFeed">+ Sustrato</button>
+          <button class="hud-btn" id="btnRemoveSubstrate">− Sustrato</button>
+          <button class="hud-btn" id="btnDecreaseLightRadius">− Radio luz</button>
+          <button class="hud-btn" id="btnIncreaseLightRadius">+ Radio luz</button>
           <button class="hud-btn" id="btnResetCam">Centrar Vista</button>
-          <button class="hud-btn" id="btnToggleLod" title="Forzar Nivel de Detalle Simplificado">LOD Auto</button>
+          <button class="hud-btn" id="btnToggleDetail" title="Alternar entre detalle automático, bajo y alto">Detalle: Auto</button>
         </div>
 
         <div class="hud-group">
-          <span class="kpi-pill">Bacterias: <strong id="kpiPop">0</strong></span>
-          <span class="kpi-pill">Esporas: <strong id="kpiSpores">0</strong></span>
-          <span class="kpi-pill">Nutrientes: <strong id="kpiNutrients">0</strong></span>
-          <span class="kpi-pill">Gen Máx: <strong id="kpiGen">1</strong></span>
-          <span class="kpi-pill">FPS: <strong id="kpiFps">60</strong></span>
+          <span class="kpi-pill"><span id="lblKpiBacteria">Bacterias:</span> <strong id="kpiPop">0</strong></span>
+          <span class="kpi-pill"><span id="lblKpiSpores">Esporas:</span> <strong id="kpiSpores">0</strong></span>
+          <span class="kpi-pill"><span id="lblKpiNutrients">Nutrientes:</span> <strong id="kpiNutrients">0</strong></span>
+          <span class="kpi-pill"><span id="lblKpiMaxGen">Gen Máx:</span> <strong id="kpiGen">1</strong></span>
+          <span class="kpi-pill"><span id="lblKpiFps">FPS:</span> <strong id="kpiFps">60</strong></span>
         </div>
+
       </div>
 
       <canvas id="simCanvas"></canvas>
@@ -535,19 +1814,32 @@
       <div class="inspector-overlay" id="inspectorPanel">
         <div class="card-title">
           <span id="inspName">Organismo #1</span>
-          <span id="inspState" style="color: var(--positive);">Activo</span>
+          <span id="inspState" style="color: var(--positive);">Vegetativa</span>
         </div>
+        <div class="inspector-dna" id="inspCodingStrand">ATG-SAP-FLA-GRP-BIN-BAC-S9V22-TAG</div>
         <div class="inspector-grid">
-          <span>Gen: <b id="inspGen">1</b></span>
-          <span>Energía: <b id="inspEnergy">0 / 0</b></span>
-          <span>Metabolismo: <b id="inspMeta">-</b></span>
-          <span>Locomoción: <b id="inspMot">-</b></span>
-          <span>Pared: <b id="inspWall">-</b></span>
-          <span>Reprod.: <b id="inspRepro">-</b></span>
-          <span>Interacción: <b id="inspInter">-</b></span>
-          <span>Armadura: <b id="inspArmor">0</b></span>
-          <span>Basal: <b id="inspBasal">0/s</b></span>
-          <span>Velocidad: <b id="inspSpeed">0</b></span>
+          <span><span id="lblInspGen">Gen</span>: <b id="inspGen">1</b></span>
+          <span class="inspector-energy-row">
+            <span id="lblInspEnergy">Energía</span>:
+            <span
+              class="inspector-energy-track"
+              id="inspEnergyTrack"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <span class="inspector-energy-fill" id="inspEnergyFill"></span>
+            </span>
+          </span>
+          <span><span id="lblInspMeta">Metabolismo</span>: <b id="inspMeta">-</b></span>
+          <span><span id="lblInspMot">Locomoción</span>: <b id="inspMot">-</b></span>
+          <span><span id="lblInspWall">Pared</span>: <b id="inspWall">-</b></span>
+          <span><span id="lblInspRepro">Reprod.</span>: <b id="inspRepro">-</b></span>
+          <span><span id="lblInspInter">Interacción</span>: <b id="inspInter">-</b></span>
+          <span><span id="lblInspArmor">Armadura</span>: <b id="inspArmor">0</b></span>
+          <span><span id="lblInspBasal">Basal</span>: <b id="inspBasal">0/s</b></span>
+          <span><span id="lblInspSpeed">Velocidad</span>: <b id="inspSpeed">0</b></span>
         </div>
       </div>
     </main>

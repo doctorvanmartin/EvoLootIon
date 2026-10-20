@@ -19,11 +19,12 @@ Este archivo proporciona el contexto arquitectónico, las reglas de negocio y la
 | `src/config/SimulationConfig.ts` | Única fuente de verdad (`SimConfig`) para constantes físicas, biológicas y de balance. | No meter lógica de estado aquí; exportar como `as const`. |
 | `src/core/SpatialHashGrid.ts` | Partición espacial 2D genérica $O(1)$. | **Zero-GC estricto:** nunca usar `new Array` ni `Map.clear()` en cada frame; vaciar con `cell.length = 0`. |
 | `src/core/SimulationEngine.ts` | Orquestador del bucle principal, cámara, sub-stepping, compactación de entidades y telemetría. | Evitar `.filter()`, `.map()` o `.splice()` dentro de `update()` o `render()`. |
-| `src/models/DNA.ts` | Genotipo inmutable por generación: 5 categorías (`GenomeTraits`), estadísticas (`GenomeStats`), *trade-offs* y mutación. | Cualquier nuevo stat cuantitativo debe integrarse en `recalculateDerivedCosts()` y `cloneWithMutation()`. |
+| `src/models/DNA.ts` | Genotipo inmutable por generación: 5 categorías (`GenomeTraits`), estadísticas (`GenomeStats`), cadena codificante `5' → 3'` (`formatCodingStrand`, `getCodonSegments`), *trade-offs*, mutación, generación aleatoria de rivales (`createRandomRival`) y nomenclatura procedural (`generateProceduralName`). | Cualquier nuevo stat cuantitativo debe integrarse en `recalculateDerivedCosts()`, `cloneWithMutation()`, `formatCodingStrand()` y `generateProceduralName()`. |
 | `src/models/Bacteria.ts` | Fenotipo y agente autónomo: esporulación, quimiotaxis, metabolismo, guerra química, predación y reproducción. | **Prohibido importar DOM o Canvas aquí.** Usar buffers estáticos preasignados para consultas espaciales. |
 | `src/models/Nutrient.ts` | Partícula de sustrato mineral o detritus orgánico (`isOrganicCorpse`). | Puro estado de datos, sin métodos de renderizado. |
-| `src/render/ProceduralRenderer.ts` | Traduce el estado de `Bacteria` y `Nutrient` a trazados de `CanvasRenderingContext2D`. | Respetar siempre el flag `lowDetail` (LOD) al añadir efectos visuales nuevos. |
-| `src/main.ts` | Punto de entrada: conecta el diseñador de cepa, el lienzo de vista previa, los gestos táctiles/ratón y la gráfica Lotka-Volterra. | Mantener sincronizados los selectores con `index.html`. |
+| `src/render/ProceduralRenderer.ts` | Traduce el estado de `Bacteria` y `Nutrient` a trazados de `CanvasRenderingContext2D` (incluyendo el visor de alta definición `renderMicroscopePreview`). | Respetar siempre el flag `lowDetail` (LOD) al añadir efectos visuales nuevos en `renderBacteria()`. |
+| `src/i18n/i18n.ts` | Sistema de internacionalización extensible (`ES` / `EN`, ampliable mediante `registerLocale()`) y adaptación pedagógica por tramos de edad en bloques de 3 años (`5-7`, `8-10`, `11-14`, `15+`). | Mantener sincronizadas todas las claves de rasgos (`GenomeTraits`) y etiquetas de UI en cada `LocaleBundle`. |
+| `src/main.ts` | Punto de entrada: gestiona el paso previo del Editor Genómico y Fenotípico (`#genomeEditorModal`), los selectores de idioma/edad, los botones de selección de rasgos (`.trait-btn`), el lienzo de microscopio electrónico, el inspector con barra de progreso de energía, los gestos táctiles/ratón y la gráfica Lotka-Volterra. | Mantener sincronizados los botones `data-trait`/`data-value` y selectores `data-lang-btn`/`data-age-btn` con `index.html`. |
 
 ---
 
@@ -42,8 +43,11 @@ Este archivo proporciona el contexto arquitectónico, las reglas de negocio y la
 4. **Coherencia de las 5 Categorías Biológicas:**
    * Las 5 categorías son: `metabolism`, `motility`, `wall`, `reproduction` e `interaction`. Cualquier cambio en sus tipos de unión en `src/models/DNA.ts` debe reflejarse en:
      * La lógica de comportamiento en `src/models/Bacteria.ts`.
+     * La nomenclatura taxonómica procedural en `DNA.generateProceduralName()`.
      * La representación visual en `src/render/ProceduralRenderer.ts`.
      * Los selectores del diseñador en `index.html` y `src/main.ts`.
+5. **Sincronización Obligatoria de la Documentación (`.md`):**
+   * **Cada cambio que se realice en las características, mecánicas, fórmulas, controles o arquitectura del juego DEBE quedar reflejado inmediatamente en los archivos `.md` correspondientes** (`MECANICAS_JUEGO.md`, `ARQUITECTURA.md`, `DESARROLLO_Y_DESPLIEGUE.md` y/o este mismo `AGENTS.md`). Ninguna tarea funcional se considera terminada si la documentación queda desactualizada respecto al código.
 
 ---
 
@@ -52,10 +56,10 @@ Este archivo proporciona el contexto arquitectónico, las reglas de negocio y la
 * **Ajustar el balance del juego (energía, daño, radios, tasas):**
   Edita únicamente `src/config/SimulationConfig.ts`.
 * **Añadir una nueva variante a una categoría biológica:**
-  1. Añade el literal al tipo correspondiente y al array de opciones de macro-mutación en `src/models/DNA.ts`.
+  1. Añade el literal al tipo correspondiente, a su mapa de codones (`*_CODONS`) y al array de opciones de macro-mutación en `src/models/DNA.ts`.
   2. Implementa su efecto mecánico en `src/models/Bacteria.ts` y/o coste en `DNA.recalculateDerivedCosts()`.
-  3. Dibuja su rasgo morfológico en `src/render/ProceduralRenderer.ts`.
-  4. Añade la opción `<option>` en `index.html`.
+  3. Dibuja su rasgo morfológico en `src/render/ProceduralRenderer.ts` (`renderBacteria` y `renderMicroscopePreview`).
+  4. Añade la tarjeta-botón `<button class="trait-btn" data-trait="..." data-value="...">` en `index.html`.
 * **Añadir nuevas cepas rivales o modos de escenario:**
   Revisa `SimulationEngine.initColonies()` en `src/core/SimulationEngine.ts`.
 
