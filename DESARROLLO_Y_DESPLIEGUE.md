@@ -129,17 +129,20 @@ Al compilar con `npm run build`, todo el juego queda empaquetado como archivos e
 
 ### Opción B: Despliegue en Subcarpeta (ej. GitHub Pages)
 
-Si vas a alojar el juego en una subruta como `https://usuario.github.io/EvoLootIon/` en lugar de la raíz del dominio, compila indicando la ruta base:
+Para este repositorio, GitHub Pages publicará el sitio en `https://doctorvanmartin.github.io/EvoLootIon/`. Vite configura automáticamente la ruta base a partir del nombre del repositorio durante la compilación de GitHub Actions, por lo que también funciona en un *fork* con otro nombre.
 
-```bash
-npx vite build --base=/EvoLootIon/
-```
+#### Publicación automática con GitHub Actions
 
-Después puedes publicar la carpeta `dist/` en la rama `gh-pages`:
+El workflow `.github/workflows/deploy-pages.yml` compila el sitio con `npm ci` y `npm run build`, y publica `dist/` cada vez que se actualiza `main`. También se puede iniciar manualmente desde la pestaña **Actions**.
 
-```bash
-npx gh-pages -d dist
-```
+Para habilitarlo en GitHub:
+
+1. Abre **Settings → Pages** en el repositorio.
+2. En **Build and deployment → Source**, selecciona **GitHub Actions**.
+3. Confirma que las ejecuciones de GitHub Actions estén permitidas en **Settings → Actions → General**.
+4. Cuando el workflow termine correctamente, abre la URL que aparece en **Settings → Pages** o en el resumen de la ejecución.
+
+No hace falta publicar `dist/` en una rama ni añadir secretos. Quien haga un *fork* deberá habilitar Pages en su propio repositorio; el workflow calcula automáticamente la ruta base para el nombre de ese repositorio.
 
 ### Opción C: Plataformas Cloud Estáticas (Vercel / Netlify / Cloudflare Pages)
 
@@ -170,8 +173,8 @@ El servicio `evolootion` se conectará automáticamente a la red `traefik_proxy`
 El script `deploy.sh` permite actualizar y relanzar el contenedor en el servidor remoto desde tu máquina local (asumiendo acceso SSH por clave pública sin contraseña, `BatchMode=yes`).
 
 * **Sin valores por defecto:** Si las variables de entorno `EVOLOOTION_REMOTE_USER`, `EVOLOOTION_REMOTE_HOST` o `EVOLOOTION_REMOTE_PATH` no están definidas (ni se pasan por argumentos CLI), el script las solicitará interactivamente por consola.
-* **Resolución de dominio (`EVOLOOTION_HOST_SUBDOMAIN` y `HOST_BASE`):** El script comprueba por SSH si existe el fichero `${EVOLOOTION_REMOTE_PATH}/../.env` en el servidor remoto. Si existe, lo inyecta con `--env-file`; si no existe dicho fichero, el script preguntará interactivamente por `EVOLOOTION_HOST_SUBDOMAIN` y `HOST_BASE`.
-* **Actualización y despliegue:** Se conecta por SSH, sincroniza la rama `main` (`git fetch origin main && git checkout main && git reset --hard origin/main`) y ejecuta `docker compose up -d --build --remove-orphans`.
+* **Resolución y persistencia de dominio (`EVOLOOTION_HOST_SUBDOMAIN` y `HOST_BASE`):** El script comprueba por SSH si existe el fichero `${EVOLOOTION_REMOTE_PATH}/../.env` en el servidor remoto y si contiene `EVOLOOTION_HOST_SUBDOMAIN` y `HOST_BASE`. Si el fichero existe pero falta alguna de las dos variables, el script pregunta interactivamente por la(s) que falte(n) y las añade al final de `${EVOLOOTION_REMOTE_PATH}/../.env`. Si el fichero `.env` no existe, pregunta por ambas y las inyecta en la ejecución.
+* **Actualización y despliegue:** Se conecta por SSH ejecutando `bash` explícitamente (compatible aunque el servidor tenga `fish` como shell por defecto), sincroniza la rama `main` (`git fetch origin main && git checkout main && git reset --hard origin/main`) y ejecuta `docker compose up -d --build --remove-orphans`.
 
 ```bash
 # Dar permisos de ejecución la primera vez

@@ -113,7 +113,8 @@ export class SimulationEngine {
     userDNA: DNA,
     rivalCount: number = SimConfig.DEFAULT_RIVAL_COLONIES,
     initialColonySize: number = SimConfig.INITIAL_COLONY_SIZE,
-    knownSpeciesIds: readonly KnownSpeciesId[] = []
+    knownSpeciesIds: readonly KnownSpeciesId[] = [],
+    customRivalDNAs: readonly DNA[] = []
   ): void {
     this.bacteria.length = 0;
     this.nutrients.length = 0;
@@ -138,7 +139,7 @@ export class SimulationEngine {
 
     const w = this.worldWidth;
     const h = this.worldHeight;
-    const totalColonies = 1 + clampedRivals + knownSpeciesIds.length;
+    const totalColonies = 1 + clampedRivals + knownSpeciesIds.length + customRivalDNAs.length;
 
     // Elegir al azar el epicentro de luz inicial dentro de la placa y su vector de deriva
     const margin = Math.min(200, Math.min(w, h) * 0.22);
@@ -228,6 +229,9 @@ export class SimulationEngine {
     // 2. Poblaciones rivales generadas al azar
     const shuffledMetabolisms = this.buildRandomMetabolismQueue(clampedRivals);
     let hasSessileColony = userDNA.traits.motility === 'sessile';
+    const hasCustomSessileRival = customRivalDNAs.some(
+      (dna) => dna.traits.motility === 'sessile'
+    );
     for (let i = 0; i < clampedRivals; i++) {
       const hueStep = 360 / totalColonies;
       const jitter = (Math.random() - 0.5) * (hueStep * 0.35);
@@ -236,7 +240,7 @@ export class SimulationEngine {
         `rival_${i + 1}`,
         hue,
         shuffledMetabolisms[i],
-        !hasSessileColony
+        !hasSessileColony && !hasCustomSessileRival
       );
       if (rivalDNA.traits.motility === 'sessile') {
         hasSessileColony = true;
@@ -251,6 +255,39 @@ export class SimulationEngine {
       const hue = Math.round((userDNA.hue + hueStep * colonyIndex + 360) % 360);
       const speciesDNA = createKnownSpeciesDNA(knownSpeciesIds[i], hue);
       spawnInitialColony(colonyCenters[colonyIndex], colonyIndex, speciesDNA);
+    }
+
+    // 4. Cepas rivales personalizadas introducidas por cadena codificante de ADN
+    for (let i = 0; i < customRivalDNAs.length; i++) {
+      const colonyIndex = clampedRivals + knownSpeciesIds.length + i + 1;
+      const sourceDNA = customRivalDNAs[i];
+      const traits = { ...sourceDNA.traits };
+      const stats = { ...sourceDNA.stats };
+      const defaultProceduralName = DNA.generateProceduralName(
+        sourceDNA.traits,
+        sourceDNA.stats
+      );
+      const hasCustomName = sourceDNA.lineageName !== defaultProceduralName;
+
+      if (traits.motility === 'sessile') {
+        if (hasSessileColony) {
+          traits.motility = 'nonmotile';
+          stats.maxSpeed = 0;
+        } else {
+          hasSessileColony = true;
+        }
+      }
+
+      const customColonyDNA = new DNA(
+        `custom_rival_${i + 1}`,
+        sourceDNA.hue,
+        traits,
+        stats,
+        1,
+        hasCustomName ? sourceDNA.lineageName : undefined,
+        sourceDNA.referenceSpecies
+      );
+      spawnInitialColony(colonyCenters[colonyIndex], colonyIndex, customColonyDNA);
     }
 
     // Población inicial de sustrato repartida en focos separados

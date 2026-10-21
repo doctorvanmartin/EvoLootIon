@@ -394,7 +394,8 @@ export class ProceduralRenderer {
     ctx: CanvasRenderingContext2D,
     b: Bacteria,
     width: number,
-    height: number
+    height: number,
+    zoomMultiplier = 1
   ): void {
     ctx.save();
     ctx.clearRect(0, 0, width, height);
@@ -412,7 +413,7 @@ export class ProceduralRenderer {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    const gridSize = 24;
+    const gridSize = zoomMultiplier > 1.2 ? 14 : 24;
     ctx.strokeStyle = 'rgba(30, 41, 59, 0.55)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -434,9 +435,9 @@ export class ProceduralRenderer {
     ctx.lineTo(width * 0.5, height * 0.5 + 12);
     ctx.stroke();
 
-    const cx = width * 0.53;
+    const cx = width * 0.52;
     const cy = height * 0.5;
-    const scale = Math.min(width / 270, height / 120) * 2.45;
+    const scale = Math.min(width / 270, height / 120) * 2.45 * zoomMultiplier;
 
     ctx.save();
     ctx.translate(cx, cy);

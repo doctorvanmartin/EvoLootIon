@@ -63,6 +63,37 @@ export interface CategoryLociMap {
   chromophoreLocus: string;
 }
 
+export type CodingStrandErrorKey =
+  | 'empty'
+  | 'token_count'
+  | 'start_codon'
+  | 'metabolism_codon'
+  | 'size_codon'
+  | 'motility_codon'
+  | 'speed_codon'
+  | 'wall_codon'
+  | 'armor_codon'
+  | 'reproduction_codon'
+  | 'perception_codon'
+  | 'interaction_codon'
+  | 'toxin_codon'
+  | 'adaptation_codon'
+  | 'chromophore_codon'
+  | 'stop_codon';
+
+export type CodingStrandParseResult =
+  | {
+      ok: true;
+      dna: DNA;
+      normalizedStrand: string;
+    }
+  | {
+      ok: false;
+      errorKey: CodingStrandErrorKey;
+      token?: string;
+      expected?: string;
+    };
+
 export const METABOLISM_CODONS: Record<MetabolismType, string> = {
   photosynthetic: 'PHO',
   saprophyte: 'SAP',
@@ -109,6 +140,61 @@ export const ADAPTATION_CODONS: Record<AdaptationType, string> = {
   bioluminescence: 'LUZ',
   suction_pore: 'VEN',
 };
+
+const CODON_TO_METABOLISM: Record<string, MetabolismType> = {
+  PHO: 'photosynthetic',
+  SAP: 'saprophyte',
+  PRE: 'predator',
+  FER: 'fermenter',
+  QUI: 'chemolithotroph',
+  HET: 'chemoheterotroph',
+};
+
+const CODON_TO_MOTILITY: Record<string, MotilityType> = {
+  SES: 'sessile',
+  NOM: 'nonmotile',
+  FLA: 'flagellated',
+  CIL: 'ciliated',
+  AXL: 'spirochete',
+};
+
+const CODON_TO_WALL: Record<string, WallType> = {
+  GRN: 'gram_negative',
+  GRP: 'gram_positive',
+  CAP: 'capsule',
+  SLY: 's_layer',
+};
+
+const CODON_TO_REPRODUCTION: Record<string, ReproductionType> = {
+  BIN: 'binary_fission',
+  GEM: 'budding',
+  ESP: 'sporulation',
+  CON: 'conjugation',
+};
+
+const CODON_TO_INTERACTION: Record<string, InteractionType> = {
+  NEU: 'neutral',
+  BAC: 'bacteriocins',
+  QUO: 'quorum_sensing',
+  SID: 'siderophores',
+};
+
+const CODON_TO_ADAPTATION: Record<string, AdaptationType> = {
+  NON: 'none',
+  PIN: 'claws',
+  BOC: 'giant_maw',
+  PNC: 'spikes',
+  LUZ: 'bioluminescence',
+  VEN: 'suction_pore',
+};
+
+function parsePrefixedNumber(token: string, prefix: string): number | null {
+  if (!token.startsWith(prefix)) return null;
+  const numPart = token.slice(prefix.length);
+  if (!/^\d+(?:\.\d+)?$/.test(numPart)) return null;
+  const val = Number(numPart);
+  return Number.isFinite(val) ? val : null;
+}
 
 const METABOLISM_OPTIONS: readonly MetabolismType[] = [
   'photosynthetic',
@@ -172,6 +258,7 @@ function randomRange(min: number, max: number, step: number = 0.1): number {
 export class DNA {
   public readonly generation: number;
   public readonly lineageName: string;
+  private readonly customLineageName?: string;
   public codingStrand: string = '';
 
   constructor(
@@ -187,6 +274,7 @@ export class DNA {
       this.traits.adaptation = 'none';
     }
     this.generation = generation;
+    this.customLineageName = lineageName;
     this.recalculateDerivedCosts();
     this.lineageName =
       lineageName ||
@@ -264,6 +352,236 @@ export class DNA {
   public static formatCodingStrand(traits: GenomeTraits, stats: GenomeStats, hue: number = 155): string {
     const loci = DNA.buildCategoryLoci(traits, stats, hue);
     return `ATG-${loci.metabolismLocus}-${loci.motilityLocus}-${loci.wallLocus}-${loci.reproductionLocus}-${loci.interactionLocus}-${loci.adaptationLocus}-${loci.chromophoreLocus}-TAG`;
+  }
+
+  /**
+   * Analiza y valida una cadena codificante (5' -> 3') de 14 codones (ej.
+   * ATG-SAP-S9-FLA-V30-GRP-A40-BIN-P11-BAC-T20-NON-H155-TAG) y reconstruye la instancia DNA.
+   */
+  public static parseCodingStrand(
+    rawStrand: string,
+    lineageId: string = 'custom_rival',
+    customName?: string
+  ): CodingStrandParseResult {
+    const cleaned = rawStrand
+      .trim()
+      .toUpperCase()
+      .replace(/^5'\s*(?:->|→)?\s*/, '')
+      .replace(/\s*(?:->|→)?\s*3'$/, '')
+      .trim();
+
+    if (!cleaned) {
+      return { ok: false, errorKey: 'empty' };
+    }
+
+    const tokens = cleaned.split(/\s*-\s*/);
+    if (tokens.length !== 14) {
+      return {
+        ok: false,
+        errorKey: 'token_count',
+        token: String(tokens.length),
+        expected: '14',
+      };
+    }
+
+    if (tokens[0] !== 'ATG') {
+      return {
+        ok: false,
+        errorKey: 'start_codon',
+        token: tokens[0],
+        expected: 'ATG',
+      };
+    }
+
+    if (tokens[13] !== 'TAG') {
+      return {
+        ok: false,
+        errorKey: 'stop_codon',
+        token: tokens[13],
+        expected: 'TAG',
+      };
+    }
+
+    const metabolism = CODON_TO_METABOLISM[tokens[1]];
+    if (!metabolism) {
+      return {
+        ok: false,
+        errorKey: 'metabolism_codon',
+        token: tokens[1],
+        expected: 'PHO, SAP, PRE, FER, QUI, HET',
+      };
+    }
+
+    const rawSize = parsePrefixedNumber(tokens[2], 'S');
+    if (rawSize === null || rawSize < 5 || rawSize > 15) {
+      return {
+        ok: false,
+        errorKey: 'size_codon',
+        token: tokens[2],
+        expected: 'S5..S15',
+      };
+    }
+
+    const motility = CODON_TO_MOTILITY[tokens[3]];
+    if (!motility) {
+      return {
+        ok: false,
+        errorKey: 'motility_codon',
+        token: tokens[3],
+        expected: 'SES, NOM, FLA, CIL, AXL',
+      };
+    }
+
+    const rawSpeedCodon = parsePrefixedNumber(tokens[4], 'V');
+    if (rawSpeedCodon === null || rawSpeedCodon < 0 || rawSpeedCodon > 65) {
+      return {
+        ok: false,
+        errorKey: 'speed_codon',
+        token: tokens[4],
+        expected: 'V0..V65',
+      };
+    }
+
+    const wall = CODON_TO_WALL[tokens[5]];
+    if (!wall) {
+      return {
+        ok: false,
+        errorKey: 'wall_codon',
+        token: tokens[5],
+        expected: 'GRN, GRP, CAP, SLY',
+      };
+    }
+
+    const rawArmorCodon = parsePrefixedNumber(tokens[6], 'A');
+    if (rawArmorCodon === null || rawArmorCodon < 0 || rawArmorCodon > 120) {
+      return {
+        ok: false,
+        errorKey: 'armor_codon',
+        token: tokens[6],
+        expected: 'A0..A120',
+      };
+    }
+
+    const reproduction = CODON_TO_REPRODUCTION[tokens[7]];
+    if (!reproduction) {
+      return {
+        ok: false,
+        errorKey: 'reproduction_codon',
+        token: tokens[7],
+        expected: 'BIN, GEM, ESP, CON',
+      };
+    }
+
+    const rawPerceptionCodon = parsePrefixedNumber(tokens[8], 'P');
+    if (rawPerceptionCodon === null || rawPerceptionCodon < 4 || rawPerceptionCodon > 16) {
+      return {
+        ok: false,
+        errorKey: 'perception_codon',
+        token: tokens[8],
+        expected: 'P4..P16',
+      };
+    }
+
+    const interaction = CODON_TO_INTERACTION[tokens[9]];
+    if (!interaction) {
+      return {
+        ok: false,
+        errorKey: 'interaction_codon',
+        token: tokens[9],
+        expected: 'NEU, BAC, QUO, SID',
+      };
+    }
+
+    const rawToxinCodon = parsePrefixedNumber(tokens[10], 'T');
+    if (rawToxinCodon === null || rawToxinCodon < 0 || rawToxinCodon > 50) {
+      return {
+        ok: false,
+        errorKey: 'toxin_codon',
+        token: tokens[10],
+        expected: 'T0..T50',
+      };
+    }
+
+    const adaptation = CODON_TO_ADAPTATION[tokens[11]];
+    if (!adaptation) {
+      return {
+        ok: false,
+        errorKey: 'adaptation_codon',
+        token: tokens[11],
+        expected: 'NON, PIN, BOC, PNC, LUZ, VEN',
+      };
+    }
+
+    const rawHueCodon = parsePrefixedNumber(tokens[12], 'H');
+    if (rawHueCodon === null || rawHueCodon < 0 || rawHueCodon > 360) {
+      return {
+        ok: false,
+        errorKey: 'chromophore_codon',
+        token: tokens[12],
+        expected: 'H0..H360',
+      };
+    }
+
+    const traits: GenomeTraits = {
+      metabolism,
+      motility,
+      wall,
+      reproduction,
+      interaction,
+      adaptation,
+    };
+
+    const size = Math.min(15, Math.max(5, rawSize));
+    let maxSpeed = 0;
+    if (motility !== 'sessile' && motility !== 'nonmotile') {
+      const effSpeed = rawSpeedCodon / 10;
+      const motilityMult =
+        motility === 'flagellated'
+          ? SimConfig.FLAGELLA_SPEED_MULTIPLIER
+          : motility === 'spirochete'
+            ? SimConfig.SPIROCHETE_SPEED_MULTIPLIER
+            : SimConfig.CILIA_SPEED_MULTIPLIER;
+      const clawPenalty = adaptation === 'claws' ? 0.8 : 1.0;
+      const rawBaseSpeed = effSpeed / (motilityMult * clawPenalty);
+      maxSpeed = Math.min(4.5, Math.max(0.5, Number(rawBaseSpeed.toFixed(4))));
+    }
+
+    const armor = Math.min(12, Math.max(0, Number((rawArmorCodon / 10).toFixed(2))));
+    const perceptionRadius = Math.min(160, Math.max(40, Math.round(rawPerceptionCodon * 10)));
+    const toxinPower =
+      interaction === 'neutral' || interaction === 'siderophores'
+        ? 0
+        : Math.min(5.0, Math.max(0, Number((rawToxinCodon / 10).toFixed(2))));
+    const splitEnergy = Math.round(95 + size * 5.5);
+    const hue = ((Math.round(rawHueCodon) % 360) + 360) % 360;
+
+    const stats: GenomeStats = {
+      size,
+      maxSpeed,
+      splitEnergy,
+      basalMetabolism: 0,
+      dragFactor: 0,
+      toxinPower,
+      armor,
+      perceptionRadius,
+      mutationRate: 0.05,
+    };
+
+    const trimmedName = customName?.trim() || undefined;
+    const dna = new DNA(lineageId, hue, traits, stats, 1, trimmedName);
+    return {
+      ok: true,
+      dna,
+      normalizedStrand: dna.codingStrand,
+    };
+  }
+
+  public static fromCodingStrand(
+    rawStrand: string,
+    lineageId: string = 'custom_rival',
+    customName?: string
+  ): CodingStrandParseResult {
+    return DNA.parseCodingStrand(rawStrand, lineageId, customName);
   }
 
   /**
@@ -544,7 +862,10 @@ export class DNA {
     const newHue =
       Math.random() < p ? (this.hue + (Math.random() * 10 - 5) + 360) % 360 : this.hue;
 
-    const nextName = this.lineageId === 'player_strain' ? this.lineageName : undefined;
+    const nextName =
+      this.lineageId === 'player_strain' || this.customLineageName
+        ? this.lineageName
+        : undefined;
     return new DNA(
       this.lineageId,
       newHue,

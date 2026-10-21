@@ -1,5 +1,6 @@
 import {
   AdaptationType,
+  CodingStrandParseResult,
   DNA,
   GenomeStats,
   GenomeTraits,
@@ -24,12 +25,28 @@ const btnOpenEditorHud = document.getElementById('btnOpenEditorHud')!;
 
 const simCanvas = document.getElementById('simCanvas') as HTMLCanvasElement;
 const previewCanvas = document.getElementById('previewCanvas') as HTMLCanvasElement;
+const miniPreviewCanvas = document.getElementById('miniPreviewCanvas') as HTMLCanvasElement;
 const chartCanvas = document.getElementById('chartCanvas') as HTMLCanvasElement;
+
+const editorBodyScroll = document.getElementById('editorBodyScroll')!;
+const microscopeViewport = document.getElementById('microscopeViewport')!;
+const miniStrainStickyBar = document.getElementById('miniStrainStickyBar')!;
+const miniStrainName = document.getElementById('miniStrainName')!;
+const miniStrainTaxonomy = document.getElementById('miniStrainTaxonomy')!;
+const miniBadgeTotalCost = document.getElementById('miniBadgeTotalCost')!;
+const miniBadgeEfficiency = document.getElementById('miniBadgeEfficiency')!;
+const btnCopyDna = document.getElementById('btnCopyDna') as HTMLButtonElement;
+const lblCopyDna = document.getElementById('lblCopyDna')!;
 
 const strainNameInput = document.getElementById('strainName') as HTMLInputElement;
 const traitButtons = document.querySelectorAll<HTMLButtonElement>('.trait-btn');
 const langButtons = document.querySelectorAll<HTMLButtonElement>('[data-lang-btn]');
 const ageButtons = document.querySelectorAll<HTMLButtonElement>('[data-age-btn]');
+const categoryTabButtons = document.querySelectorAll<HTMLButtonElement>('[data-category-tab]');
+const traitCategories = document.querySelectorAll<HTMLElement>('.trait-category[data-trait-group]');
+const btnPrevCategory = document.getElementById('btnPrevCategory') as HTMLButtonElement;
+const btnNextCategory = document.getElementById('btnNextCategory') as HTMLButtonElement;
+const lblCategoryStepIndicator = document.getElementById('lblCategoryStepIndicator')!;
 
 const rngSize = document.getElementById('rngSize') as HTMLInputElement;
 const rngSpeed = document.getElementById('rngSpeed') as HTMLInputElement;
@@ -41,6 +58,18 @@ const rngInitialPop = document.getElementById('rngInitialPop') as HTMLInputEleme
 const rngRivals = document.getElementById('rngRivals') as HTMLInputElement;
 const knownSpeciesCheckboxes =
   document.querySelectorAll<HTMLInputElement>('[data-known-species]');
+const knownSpeciesBox = document.getElementById('knownSpeciesBox')!;
+const btnToggleFamousSpecies = document.getElementById('btnToggleFamousSpecies') as HTMLButtonElement;
+const badgeFamousSpeciesCount = document.getElementById('badgeFamousSpeciesCount')!;
+const customRivalDnaBox = document.getElementById('customRivalDnaBox')!;
+const btnToggleCustomRivalDna = document.getElementById('btnToggleCustomRivalDna') as HTMLButtonElement;
+const badgeCustomRivalsCount = document.getElementById('badgeCustomRivalsCount')!;
+const customRivalDnaInput = document.getElementById('customRivalDnaInput') as HTMLInputElement;
+const btnRandomCustomRivalDna = document.getElementById('btnRandomCustomRivalDna') as HTMLButtonElement;
+const customRivalNameInput = document.getElementById('customRivalNameInput') as HTMLInputElement;
+const btnAddCustomRival = document.getElementById('btnAddCustomRival') as HTMLButtonElement;
+const customRivalFeedback = document.getElementById('customRivalFeedback')!;
+const customRivalsList = document.getElementById('customRivalsList')!;
 
 const valSize = document.getElementById('valSize')!;
 const valSpeed = document.getElementById('valSpeed')!;
@@ -107,6 +136,75 @@ const inspBasal = document.getElementById('inspBasal')!;
 const inspSpeed = document.getElementById('inspSpeed')!;
 
 // --- Estado de Selección de las Categorías Biológicas y Adaptación Única ---
+const TRAIT_ICONS: {
+  metabolism: Record<MetabolismType, string>;
+  motility: Record<MotilityType, string>;
+  wall: Record<WallType, string>;
+  reproduction: Record<ReproductionType, string>;
+  interaction: Record<InteractionType, string>;
+  adaptation: Record<AdaptationType, string>;
+} = {
+  metabolism: {
+    photosynthetic: 'metabolism-photosynthetic.png',
+    saprophyte: 'metabolism-saprophyte.png',
+    predator: 'species-helicobacter.png',
+    fermenter: 'metabolism-fermenter.png',
+    chemolithotroph: 'metabolism-chemolithotroph.png',
+    chemoheterotroph: 'pipette.png',
+  },
+  motility: {
+    sessile: 'motility-sessile.png',
+    nonmotile: 'motility-nonmotile.png',
+    flagellated: 'motility-flagellated.png',
+    ciliated: 'motility-ciliated.png',
+    spirochete: 'motility-spirochete.png',
+  },
+  wall: {
+    gram_negative: 'wall-gram-negative.png',
+    gram_positive: 'wall-gram-positive.png',
+    capsule: 'wall-capsule.png',
+    s_layer: 'wall-s-layer.png',
+  },
+  reproduction: {
+    binary_fission: 'reproduction-fission.png',
+    budding: 'reproduction-budding.png',
+    sporulation: 'reproduction-sporulation.png',
+    conjugation: 'reproduction-conjugation.png',
+  },
+  interaction: {
+    neutral: 'petri-colony.png',
+    bacteriocins: 'toxin-allergen.png',
+    quorum_sensing: 'interaction-quorum.png',
+    siderophores: 'interaction-siderophores.png',
+  },
+  adaptation: {
+    none: 'adaptation-none.png',
+    claws: 'adaptation-claws.png',
+    giant_maw: 'adaptation-giant-maw.png',
+    spikes: 'adaptation-spikes.png',
+    bioluminescence: 'adaptation-bioluminescence.png',
+    suction_pore: 'adaptation-suction-pore.png',
+  },
+};
+
+function setElementWithIcon(
+  el: HTMLElement | null,
+  iconFile: string,
+  text: string,
+  iconClass = 'ui-icon'
+): void {
+  if (!el) return;
+  el.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = `icons/${iconFile}`;
+  img.alt = '';
+  img.className = iconClass;
+  img.decoding = 'async';
+  const span = document.createElement('span');
+  span.textContent = text;
+  el.append(img, span);
+}
+
 const selectedTraits: GenomeTraits = {
   metabolism: 'saprophyte',
   motility: 'flagellated',
@@ -182,6 +280,47 @@ randomizeInitialSelection();
 let hasInoculatedOnce = false;
 let wasPausedBeforeEditor = false;
 
+const CATEGORY_ORDER: readonly (keyof GenomeTraits)[] = [
+  'metabolism',
+  'motility',
+  'wall',
+  'reproduction',
+  'interaction',
+  'adaptation',
+] as const;
+
+let activeCategoryGroup: keyof GenomeTraits = 'metabolism';
+
+function setActiveCategoryGroup(group: keyof GenomeTraits, focusTab = false): void {
+  activeCategoryGroup = group;
+
+  categoryTabButtons.forEach((btn) => {
+    const isTarget = btn.dataset.categoryTab === group;
+    btn.classList.toggle('active', isTarget);
+    btn.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+    if (isTarget && focusTab) {
+      btn.focus();
+    }
+  });
+
+  traitCategories.forEach((catEl) => {
+    catEl.classList.toggle('is-open', catEl.dataset.traitGroup === group);
+  });
+
+  updateCategoryStepNavText();
+}
+
+function updateCategoryStepNavText(): void {
+  const ui = i18n.getBundle().ui;
+  const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
+  const currentNum = idx >= 0 ? idx + 1 : 1;
+  lblCategoryStepIndicator.textContent = ui.categoryTabs.stepOf
+    .replace('{current}', String(currentNum))
+    .replace('{total}', String(CATEGORY_ORDER.length));
+  btnPrevCategory.textContent = ui.categoryTabs.prev;
+  btnNextCategory.textContent = ui.categoryTabs.next;
+}
+
 // --- Construcción del ADN desde el Diseñador ---
 function buildUserDNA(): DNA {
   const traits: GenomeTraits = { ...selectedTraits };
@@ -235,6 +374,19 @@ function renderCodingStrandTokens(dna: DNA): void {
     c.chromophore,
     c.stop,
   ];
+  const codontoCategoryMap: Partial<Record<number, keyof GenomeTraits>> = {
+    1: 'metabolism',
+    2: 'metabolism',
+    3: 'motility',
+    4: 'motility',
+    5: 'wall',
+    6: 'wall',
+    7: 'reproduction',
+    8: 'reproduction',
+    9: 'interaction',
+    10: 'interaction',
+    11: 'adaptation',
+  };
   dnaStrandDisplay.innerHTML = segments
     .map((seg, idx) => {
       const cls =
@@ -249,7 +401,9 @@ function renderCodingStrandTokens(dna: DNA): void {
                 : 'codon-token';
       const sep = idx < segments.length - 1 ? '<span class="codon-sep">-</span>' : '';
       const tooltip = translatedLabels[idx] || seg.label;
-      return `<span class="${cls}" title="${tooltip}">${seg.code}</span>${sep}`;
+      const jumpCat = codontoCategoryMap[idx];
+      const dataAttr = jumpCat ? ` data-jump-category="${jumpCat}" style="cursor:pointer;"` : '';
+      return `<span class="${cls}" title="${tooltip}"${dataAttr}>${seg.code}</span>${sep}`;
     })
     .join('');
 }
@@ -272,6 +426,145 @@ function getSelectedKnownSpecies(): KnownSpeciesId[] {
 function getSelectedInitialPop(): number {
   const parsed = parseInt(rngInitialPop.value, 10);
   return Number.isNaN(parsed) ? SimConfig.INITIAL_COLONY_SIZE : parsed;
+}
+
+interface CustomRivalEntry {
+  id: number;
+  dna: DNA;
+  customName?: string;
+  taxonomyName: string;
+}
+
+const customRivals: CustomRivalEntry[] = [];
+let nextCustomRivalId = 1;
+
+type CustomFeedbackState =
+  | { type: 'none' }
+  | { type: 'preview'; result: CodingStrandParseResult }
+  | { type: 'added'; name: string; taxonomy: string };
+
+let customFeedbackState: CustomFeedbackState = { type: 'none' };
+
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderCustomRivalFeedback(): void {
+  const i18nCustom = i18n.getBundle().ui.customRivalDna;
+  customRivalFeedback.classList.remove('is-valid', 'is-invalid');
+
+  if (customFeedbackState.type === 'none') {
+    customRivalFeedback.textContent = '';
+    return;
+  }
+
+  if (customFeedbackState.type === 'added') {
+    customRivalFeedback.classList.add('is-valid');
+    customRivalFeedback.textContent = i18nCustom.addedSuccess
+      .replace('{name}', customFeedbackState.name)
+      .replace('{taxonomy}', customFeedbackState.taxonomy);
+    return;
+  }
+
+  const res = customFeedbackState.result;
+  if (res.ok) {
+    const taxonomy = DNA.generateProceduralName(res.dna.traits, res.dna.stats);
+    customRivalFeedback.classList.add('is-valid');
+    customRivalFeedback.textContent = i18nCustom.validPreview
+      .replace('{taxonomy}', taxonomy)
+      .replace('{strand}', res.normalizedStrand);
+  } else {
+    const template = i18nCustom.errors[res.errorKey];
+    customRivalFeedback.classList.add('is-invalid');
+    customRivalFeedback.textContent = template
+      .replace('{token}', res.token ?? '')
+      .replace('{expected}', res.expected ?? '');
+  }
+}
+
+function renderCustomRivalsList(): void {
+  const removeTitle = escapeHtml(i18n.getBundle().ui.customRivalDna.removeTitle);
+  customRivalsList.innerHTML = customRivals
+    .map((entry) => {
+      const displayTitle = escapeHtml(entry.customName || entry.taxonomyName);
+      const subtitleHtml = entry.customName
+        ? `<span class="custom-rival-chip-tax">${escapeHtml(entry.taxonomyName)}</span>`
+        : '';
+      return `
+        <div class="custom-rival-chip">
+          <span class="custom-rival-swatch" style="background: hsl(${entry.dna.hue}, 80%, 52%); color: hsl(${entry.dna.hue}, 80%, 52%)"></span>
+          <div class="custom-rival-chip-info">
+            <div class="custom-rival-chip-title">
+              <span>${displayTitle}</span>
+              ${subtitleHtml}
+            </div>
+            <code class="custom-rival-chip-strand">${escapeHtml(entry.dna.codingStrand)}</code>
+          </div>
+          <button
+            type="button"
+            class="custom-rival-remove-btn"
+            data-remove-custom-rival="${entry.id}"
+            title="${removeTitle}"
+            aria-label="${removeTitle}"
+          >&times;</button>
+        </div>`;
+    })
+    .join('');
+}
+
+function handleCustomRivalDnaLiveInput(): void {
+  const raw = customRivalDnaInput.value.trim();
+  if (!raw) {
+    customFeedbackState = { type: 'none' };
+    renderCustomRivalFeedback();
+    return;
+  }
+  const result = DNA.parseCodingStrand(
+    raw,
+    `custom_rival_${nextCustomRivalId}`,
+    customRivalNameInput.value.trim() || undefined
+  );
+  customFeedbackState = { type: 'preview', result };
+  renderCustomRivalFeedback();
+}
+
+function handleAddCustomRival(): void {
+  const rawStrand = customRivalDnaInput.value;
+  const customName = customRivalNameInput.value.trim() || undefined;
+  const id = nextCustomRivalId;
+  const result = DNA.parseCodingStrand(rawStrand, `custom_rival_${id}`, customName);
+
+  if (!result.ok) {
+    customFeedbackState = { type: 'preview', result };
+    renderCustomRivalFeedback();
+    customRivalDnaInput.focus();
+    return;
+  }
+
+  nextCustomRivalId++;
+  const taxonomyName = DNA.generateProceduralName(result.dna.traits, result.dna.stats);
+  customRivals.push({
+    id,
+    dna: result.dna,
+    customName,
+    taxonomyName,
+  });
+
+  customRivalDnaInput.value = '';
+  customRivalNameInput.value = '';
+  customFeedbackState = {
+    type: 'added',
+    name: result.dna.lineageName,
+    taxonomy: taxonomyName,
+  };
+  renderCustomRivalFeedback();
+  renderCustomRivalsList();
+  updateDesignerReadouts();
 }
 
 function updateDesignerReadouts(): void {
@@ -321,11 +614,21 @@ function updateDesignerReadouts(): void {
   }`;
 
   const rivalCount = getSelectedRivalCount();
-  const famousSpeciesCount = getSelectedKnownSpecies().length;
-  valRivals.textContent = ui.rivalsSummary
-    .replace('{random}', `${rivalCount}`)
-    .replace('{famous}', `${famousSpeciesCount}`)
-    .replace('{total}', `${rivalCount + famousSpeciesCount}`);
+  const selectedFamousCount = getSelectedKnownSpecies().length;
+  const customCount = customRivals.length;
+  const extraRivalsCount = selectedFamousCount + customCount;
+  const totalRivalsCount = rivalCount + extraRivalsCount;
+  const rivalUnit = totalRivalsCount === 1 ? ui.rivalSingular : ui.rivalPlural;
+  valRivals.textContent =
+    extraRivalsCount > 0
+      ? `${rivalCount} + ${extraRivalsCount} (${totalRivalsCount} ${rivalUnit})`
+      : `${rivalCount} ${rivalUnit}`;
+
+  badgeFamousSpeciesCount.textContent = `+${selectedFamousCount}`;
+  badgeFamousSpeciesCount.classList.toggle('hidden', selectedFamousCount === 0);
+
+  badgeCustomRivalsCount.textContent = `+${customCount}`;
+  badgeCustomRivalsCount.classList.toggle('hidden', customCount === 0);
 
   rngSpeed.disabled =
     dna.traits.motility === 'sessile' || dna.traits.motility === 'nonmotile';
@@ -340,6 +643,65 @@ function updateDesignerReadouts(): void {
   locusInteraction.textContent = loci.interactionLocus;
   locusAdaptation.textContent = `${ui.genePrefix}: ${loci.adaptationLocus}`;
   locusHue.textContent = loci.chromophoreLocus;
+
+  // Actualizar los resúmenes en las pestañas rápidas de categorías (A..F)
+  const ageTraits = i18n.getAgeContent().traits;
+
+  const metaEntry = ageTraits.metabolism[dna.traits.metabolism];
+  const motEntry = ageTraits.motility[dna.traits.motility];
+  const wallEntry = ageTraits.wall[dna.traits.wall];
+  const reproEntry = ageTraits.reproduction[dna.traits.reproduction];
+  const interEntry = ageTraits.interaction[dna.traits.interaction];
+  const adaptKey = dna.traits.adaptation || 'none';
+  const adaptEntry = ageTraits.adaptation[adaptKey];
+
+  setElementWithIcon(
+    document.getElementById('catTraitMetabolism'),
+    TRAIT_ICONS.metabolism[dna.traits.metabolism],
+    metaEntry.inspectorLabel,
+    'ui-icon ui-icon-xs'
+  );
+  setTextById('catLocusMetabolism', loci.metabolismLocus);
+
+  setElementWithIcon(
+    document.getElementById('catTraitMotility'),
+    TRAIT_ICONS.motility[dna.traits.motility],
+    motEntry.inspectorLabel,
+    'ui-icon ui-icon-xs'
+  );
+  setTextById('catLocusMotility', loci.motilityLocus);
+
+  setElementWithIcon(
+    document.getElementById('catTraitWall'),
+    TRAIT_ICONS.wall[dna.traits.wall],
+    wallEntry.inspectorLabel,
+    'ui-icon ui-icon-xs'
+  );
+  setTextById('catLocusWall', loci.wallLocus);
+
+  setElementWithIcon(
+    document.getElementById('catTraitReproduction'),
+    TRAIT_ICONS.reproduction[dna.traits.reproduction],
+    reproEntry.inspectorLabel,
+    'ui-icon ui-icon-xs'
+  );
+  setTextById('catLocusReproduction', loci.reproductionLocus);
+
+  setElementWithIcon(
+    document.getElementById('catTraitInteraction'),
+    TRAIT_ICONS.interaction[dna.traits.interaction],
+    interEntry.inspectorLabel,
+    'ui-icon ui-icon-xs'
+  );
+  setTextById('catLocusInteraction', loci.interactionLocus);
+
+  setElementWithIcon(
+    document.getElementById('catTraitAdaptation'),
+    TRAIT_ICONS.adaptation[adaptKey],
+    adaptEntry.inspectorLabel,
+    'ui-icon ui-icon-xs'
+  );
+  setTextById('catLocusAdaptation', loci.adaptationLocus);
 
   // Costes Bioenergéticos (Kleiber + Nado a velocidad efectiva + Química)
   const basalCost = dna.stats.basalMetabolism;
@@ -365,14 +727,20 @@ function updateDesignerReadouts(): void {
   badgeTotalCost.textContent = `${totalCost.toFixed(2)} ATP/s`;
 
   badgeEfficiency.classList.remove('warning', 'danger');
+  miniBadgeEfficiency.classList.remove('warning', 'danger');
   if (totalCost <= 2.35) {
     badgeEfficiency.textContent = ui.efficiencyHigh;
+    miniBadgeEfficiency.textContent = ui.efficiencyHigh;
   } else if (totalCost <= 3.65) {
     badgeEfficiency.textContent = ui.efficiencyModerate;
     badgeEfficiency.classList.add('warning');
+    miniBadgeEfficiency.textContent = ui.efficiencyModerate;
+    miniBadgeEfficiency.classList.add('warning');
   } else {
     badgeEfficiency.textContent = ui.efficiencyDanger;
     badgeEfficiency.classList.add('danger');
+    miniBadgeEfficiency.textContent = ui.efficiencyDanger;
+    miniBadgeEfficiency.classList.add('danger');
   }
 
   const shapeLabel =
@@ -394,17 +762,36 @@ function updateDesignerReadouts(): void {
   previewTaxonomyName.textContent = taxName;
   previewTraitSummary.textContent = `${shapeLabel} · ${ui.divisionAtLabel} ${splitReq}E`;
 
+  // Actualizar también la barra compacta flotante (imagen mini + consumo total de ATP)
+  miniStrainName.textContent = dna.lineageName;
+  miniStrainTaxonomy.textContent = taxName;
+  miniBadgeTotalCost.textContent = `${totalCost.toFixed(2)} ATP/s`;
+
   renderCodingStrandTokens(dna);
+}
+
+function syncMiniStickyBarVisibility(): boolean {
+  const scrollRect = editorBodyScroll.getBoundingClientRect();
+  const viewportRect = microscopeViewport.getBoundingClientRect();
+  // Mostrar barra compacta cuando más de la mitad del visor del microscopio queda oculto por el scroll
+  const isMainPreviewHidden =
+    viewportRect.height > 0 && viewportRect.bottom < scrollRect.top + viewportRect.height * 0.45;
+  miniStrainStickyBar.classList.toggle('hidden', !isMainPreviewHidden);
+  return isMainPreviewHidden;
 }
 
 function animatePreview(): void {
   const isEditorOpen = !genomeEditorModal.classList.contains('hidden');
   if (isEditorOpen) {
+    previewDummy.angle = Math.sin(performance.now() * 0.0014) * 0.08;
+    previewDummy.animPhase += 0.11;
+    previewDummy.isEmittingToxin = previewDummy.dna.traits.interaction !== 'neutral';
+
+    const dpr = window.devicePixelRatio || 1;
     const ctx = previewCanvas.getContext('2d');
     if (ctx) {
-      const dpr = window.devicePixelRatio || 1;
       const w = previewCanvas.clientWidth || 420;
-      const h = previewCanvas.clientHeight || 220;
+      const h = previewCanvas.clientHeight || 195;
       if (
         previewCanvas.width !== Math.floor(w * dpr) ||
         previewCanvas.height !== Math.floor(h * dpr)
@@ -415,13 +802,29 @@ function animatePreview(): void {
 
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      previewDummy.angle = Math.sin(performance.now() * 0.0014) * 0.08;
-      previewDummy.animPhase += 0.11;
-      previewDummy.isEmittingToxin = previewDummy.dna.traits.interaction !== 'neutral';
-
       ProceduralRenderer.renderMicroscopePreview(ctx, previewDummy, w, h);
       ctx.restore();
+    }
+
+    const isMiniVisible = syncMiniStickyBarVisibility();
+    if (isMiniVisible) {
+      const miniCtx = miniPreviewCanvas.getContext('2d');
+      if (miniCtx) {
+        const mw = miniPreviewCanvas.clientWidth || 84;
+        const mh = miniPreviewCanvas.clientHeight || 50;
+        if (
+          miniPreviewCanvas.width !== Math.floor(mw * dpr) ||
+          miniPreviewCanvas.height !== Math.floor(mh * dpr)
+        ) {
+          miniPreviewCanvas.width = Math.floor(mw * dpr);
+          miniPreviewCanvas.height = Math.floor(mh * dpr);
+        }
+
+        miniCtx.save();
+        miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ProceduralRenderer.renderMicroscopePreview(miniCtx, previewDummy, mw, mh, 2.05);
+        miniCtx.restore();
+      }
     }
   }
 
@@ -600,13 +1003,146 @@ traitButtons.forEach((btn) => {
   });
 });
 
-[rngSize, rngSpeed, rngArmor, rngPerception, rngToxin, rngHue, rngInitialPop, rngRivals].forEach(
+  // Eventos de cambio rápido entre categorías biológicas (pestañas, teclado, botones Anterior/Siguiente y codones ADN)
+  categoryTabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cat = btn.dataset.categoryTab as keyof GenomeTraits | undefined;
+      if (cat && CATEGORY_ORDER.includes(cat)) {
+        setActiveCategoryGroup(cat);
+      }
+    });
+
+    btn.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
+      const delta = e.key === 'ArrowRight' ? 1 : -1;
+      const nextIdx = (idx + delta + CATEGORY_ORDER.length) % CATEGORY_ORDER.length;
+      setActiveCategoryGroup(CATEGORY_ORDER[nextIdx], true);
+    });
+  });
+
+  btnPrevCategory.addEventListener('click', () => {
+    const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
+    const prevIdx = (idx - 1 + CATEGORY_ORDER.length) % CATEGORY_ORDER.length;
+    setActiveCategoryGroup(CATEGORY_ORDER[prevIdx]);
+  });
+
+  btnNextCategory.addEventListener('click', () => {
+    const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
+    const nextIdx = (idx + 1) % CATEGORY_ORDER.length;
+    setActiveCategoryGroup(CATEGORY_ORDER[nextIdx]);
+  });
+
+  dnaStrandDisplay.addEventListener('click', (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-jump-category]');
+    const cat = target?.dataset.jumpCategory as keyof GenomeTraits | undefined;
+    if (cat && CATEGORY_ORDER.includes(cat)) {
+      setActiveCategoryGroup(cat);
+    }
+  });
+
+  let copyFeedbackTimeout: number | undefined;
+  btnCopyDna.addEventListener('click', async () => {
+    const strand = buildUserDNA().codingStrand;
+    try {
+      await navigator.clipboard.writeText(strand);
+    } catch {
+      const tempInput = document.createElement('textarea');
+      tempInput.value = strand;
+      tempInput.style.position = 'fixed';
+      tempInput.style.opacity = '0';
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+    }
+
+    const ui = i18n.getBundle().ui;
+    btnCopyDna.classList.add('copied');
+    lblCopyDna.textContent = ui.copyDnaCopied;
+    if (copyFeedbackTimeout !== undefined) {
+      window.clearTimeout(copyFeedbackTimeout);
+    }
+    copyFeedbackTimeout = window.setTimeout(() => {
+      btnCopyDna.classList.remove('copied');
+      lblCopyDna.textContent = i18n.getBundle().ui.copyDnaBtn;
+    }, 1800);
+  });
+
+  editorBodyScroll.addEventListener('scroll', syncMiniStickyBarVisibility, { passive: true });
+
+  [rngSize, rngSpeed, rngArmor, rngPerception, rngToxin, rngHue, rngInitialPop, rngRivals].forEach(
   (el) => el.addEventListener('input', updateDesignerReadouts)
 );
 knownSpeciesCheckboxes.forEach((checkbox) =>
   checkbox.addEventListener('change', updateDesignerReadouts)
 );
 strainNameInput.addEventListener('input', updateDesignerReadouts);
+
+btnToggleFamousSpecies.addEventListener('click', () => {
+  const isOpen = knownSpeciesBox.classList.toggle('is-open');
+  btnToggleFamousSpecies.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+});
+
+btnToggleCustomRivalDna.addEventListener('click', () => {
+  const isOpen = customRivalDnaBox.classList.toggle('is-open');
+  btnToggleCustomRivalDna.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+});
+
+btnRandomCustomRivalDna.addEventListener('click', () => {
+  const randomHue = Math.floor(Math.random() * 72) * 5;
+  const randomDna = DNA.createRandomRival('random_sample', randomHue);
+  const randomAdaptations: readonly AdaptationType[] = [
+    'none',
+    'claws',
+    'giant_maw',
+    'spikes',
+    'bioluminescence',
+    'suction_pore',
+  ];
+  const sampleDna = new DNA(
+    'random_sample',
+    randomHue,
+    {
+      ...randomDna.traits,
+      adaptation: pickRandom(randomAdaptations),
+    },
+    randomDna.stats,
+    1
+  );
+  customRivalDnaInput.value = sampleDna.codingStrand;
+  handleCustomRivalDnaLiveInput();
+  customRivalDnaInput.focus();
+});
+
+customRivalDnaInput.addEventListener('input', handleCustomRivalDnaLiveInput);
+customRivalDnaInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleAddCustomRival();
+  }
+});
+customRivalNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleAddCustomRival();
+  }
+});
+btnAddCustomRival.addEventListener('click', handleAddCustomRival);
+customRivalsList.addEventListener('click', (e) => {
+  const removeBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+    '[data-remove-custom-rival]'
+  );
+  if (!removeBtn) return;
+  const targetId = Number(removeBtn.dataset.removeCustomRival);
+  const idx = customRivals.findIndex((item) => item.id === targetId);
+  if (idx !== -1) {
+    customRivals.splice(idx, 1);
+    renderCustomRivalsList();
+    updateDesignerReadouts();
+  }
+});
 
 // --- Flujo del Paso Previo (Editor <-> Placa de Cultivo) ---
 function syncPauseButtonUI(paused: boolean): void {
@@ -661,7 +1197,12 @@ function applyTranslations(): void {
   btnCloseEditor.textContent = ui.btnReturnToCulture;
 
   // Columna izquierda del Editor
-  setTextById('lblMicroscopeTitle', ui.microscopeTitle);
+  setElementWithIcon(
+    document.getElementById('lblMicroscopeTitle'),
+    'microscope-lab.png',
+    ui.microscopeTitle,
+    'ui-icon ui-icon-sm'
+  );
   setTextById('lblStrainName', age.params.strainNameLabel);
   strainNameInput.placeholder = age.params.strainNamePlaceholder;
   if (
@@ -675,32 +1216,98 @@ function applyTranslations(): void {
       activeStrainTitle.textContent = ui.defaultPlayerStrainName;
     }
   }
-  setTextById('lblParamHue', age.params.hue);
+  setElementWithIcon(
+    document.getElementById('lblParamHue'),
+    'param-hue.png',
+    age.params.hue,
+    'ui-icon ui-icon-sm'
+  );
   setTextById('lblColorGeneBadge', ui.colorGeneBadge);
-  setTextById('lblCodingStrandTitle', ui.codingStrandTitle);
-  setTextById('lblBioBalanceTitle', ui.bioBalanceTitle);
+  setElementWithIcon(
+    document.getElementById('lblCodingStrandTitle'),
+    'dna-helix.png',
+    ui.codingStrandTitle,
+    'ui-icon ui-icon-sm'
+  );
+  if (!btnCopyDna.classList.contains('copied')) {
+    lblCopyDna.textContent = ui.copyDnaBtn;
+  }
+  btnCopyDna.title = ui.copyDnaTitle;
+  setElementWithIcon(
+    document.getElementById('lblBioBalanceTitle'),
+    'atp-energy.png',
+    ui.bioBalanceTitle,
+    'ui-icon ui-icon-sm'
+  );
   setTextById('lblCostBasal', ui.costBasal);
   setTextById('lblCostSwim', ui.costSwim);
   setTextById('lblCostToxin', ui.costToxin);
   setTextById('lblCostTotal', ui.costTotal);
+  setTextById('lblMiniTotalCost', ui.costTotal);
 
   const paretoNote = document.getElementById('lblParetoNote');
   if (paretoNote) {
-    paretoNote.innerHTML = `💡 <strong>${age.paretoTitle}</strong> ${age.paretoBody}`;
+    paretoNote.innerHTML = `<img class="ui-icon ui-icon-xs" src="icons/adaptation-bioluminescence.png" alt="" /> <strong>${age.paretoTitle}</strong> ${age.paretoBody}`;
   }
 
-  setTextById('lblCultureConditionsTitle', ui.cultureConditionsTitle);
-  setTextById('lblParamInitialPop', age.params.initialPop);
-  setTextById('lblParamRivals', age.params.rivals);
-  setTextById('lblFamousSpeciesTitle', ui.famousSpeciesTitle);
-  setTextById('lblFamousSpeciesHelp', ui.famousSpeciesHelp);
-  setTextById('lblBtnDeploy', ui.btnDeploy);
+  setElementWithIcon(
+    document.getElementById('lblCultureConditionsTitle'),
+    'petri-dish.png',
+    ui.cultureConditionsTitle,
+    'ui-icon ui-icon-sm'
+  );
+  setElementWithIcon(
+    document.getElementById('lblParamInitialPop'),
+    'petri-colony.png',
+    age.params.initialPop,
+    'ui-icon ui-icon-sm'
+  );
+  setElementWithIcon(
+    document.getElementById('lblParamRivals'),
+    'rivals-colonies.png',
+    age.params.rivals,
+    'ui-icon ui-icon-sm'
+  );
+  setElementWithIcon(
+    document.getElementById('lblFamousSpeciesTitle'),
+    'motility-flagellated.png',
+    ui.famousSpeciesTitle,
+    'ui-icon ui-icon-sm'
+  );
+  setElementWithIcon(
+    document.getElementById('lblCustomRivalDnaTitle'),
+    'dna-helix.png',
+    ui.customRivalDna.title,
+    'ui-icon ui-icon-sm'
+  );
+  setTextById('lblCustomRivalDnaHint', ui.customRivalDna.hint);
+  customRivalDnaInput.placeholder = ui.customRivalDna.dnaPlaceholder;
+  btnRandomCustomRivalDna.textContent = ui.customRivalDna.btnRandomDna;
+  btnRandomCustomRivalDna.title = ui.customRivalDna.btnRandomDnaTitle;
+  customRivalNameInput.placeholder = ui.customRivalDna.namePlaceholder;
+  btnAddCustomRival.textContent = ui.customRivalDna.btnVerifyAdd;
+  renderCustomRivalFeedback();
+  renderCustomRivalsList();
+  setElementWithIcon(
+    document.getElementById('lblBtnDeploy'),
+    'petri-dish.png',
+    ui.btnDeploy,
+    'ui-icon ui-icon-md'
+  );
 
-  // Columna derecha del Editor: Encabezado y Categorías A..F
+  // Columna derecha del Editor: Encabezado, Pestañas Rápidas y Categorías A..F
   const sectionHeading = document.querySelector<HTMLElement>('.editor-right-col .section-heading');
   if (sectionHeading) {
     sectionHeading.textContent = age.section1Heading;
   }
+
+  setTextById('lblCatTabMetabolism', ui.categoryTabs.metabolism);
+  setTextById('lblCatTabMotility', ui.categoryTabs.motility);
+  setTextById('lblCatTabWall', ui.categoryTabs.wall);
+  setTextById('lblCatTabReproduction', ui.categoryTabs.reproduction);
+  setTextById('lblCatTabInteraction', ui.categoryTabs.interaction);
+  setTextById('lblCatTabAdaptation', ui.categoryTabs.adaptation);
+  updateCategoryStepNavText();
 
   const updateCategoryHeader = (
     group: 'metabolism' | 'motility' | 'wall' | 'reproduction' | 'interaction',
@@ -737,58 +1344,66 @@ function applyTranslations(): void {
     const descEl = btn.querySelector<HTMLElement>('.trait-btn-desc');
 
     if (category === 'metabolism') {
-      const entry = age.traits.metabolism[value as MetabolismType];
+      const key = value as MetabolismType;
+      const entry = age.traits.metabolism[key];
       if (entry) {
-        if (titleEl) titleEl.textContent = entry.editorTitle;
+        setElementWithIcon(titleEl, TRAIT_ICONS.metabolism[key], entry.editorTitle, 'trait-icon');
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'motility') {
-      const entry = age.traits.motility[value as MotilityType];
+      const key = value as MotilityType;
+      const entry = age.traits.motility[key];
       if (entry) {
-        if (titleEl) titleEl.textContent = entry.editorTitle;
+        setElementWithIcon(titleEl, TRAIT_ICONS.motility[key], entry.editorTitle, 'trait-icon');
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'wall') {
-      const entry = age.traits.wall[value as WallType];
+      const key = value as WallType;
+      const entry = age.traits.wall[key];
       if (entry) {
-        if (titleEl) titleEl.textContent = entry.editorTitle;
+        setElementWithIcon(titleEl, TRAIT_ICONS.wall[key], entry.editorTitle, 'trait-icon');
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'reproduction') {
-      const entry = age.traits.reproduction[value as ReproductionType];
+      const key = value as ReproductionType;
+      const entry = age.traits.reproduction[key];
       if (entry) {
-        if (titleEl) titleEl.textContent = entry.editorTitle;
+        setElementWithIcon(titleEl, TRAIT_ICONS.reproduction[key], entry.editorTitle, 'trait-icon');
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'interaction') {
-      const entry = age.traits.interaction[value as InteractionType];
+      const key = value as InteractionType;
+      const entry = age.traits.interaction[key];
       if (entry) {
-        if (titleEl) titleEl.textContent = entry.editorTitle;
+        setElementWithIcon(titleEl, TRAIT_ICONS.interaction[key], entry.editorTitle, 'trait-icon');
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'adaptation') {
-      const entry = age.traits.adaptation[value as AdaptationType];
+      const key = value as AdaptationType;
+      const entry = age.traits.adaptation[key];
       if (entry) {
-        if (titleEl) titleEl.textContent = entry.editorTitle;
+        setElementWithIcon(titleEl, TRAIT_ICONS.adaptation[key], entry.editorTitle, 'trait-icon');
         if (descEl) descEl.innerHTML = entry.editorDesc;
         const proEl = btn.querySelector<HTMLElement>('.tag-pro');
         const conEl = btn.querySelector<HTMLElement>('.tag-con');
-        if (proEl) proEl.textContent = entry.proTag;
-        if (conEl && entry.conTag) conEl.textContent = entry.conTag;
+        setElementWithIcon(proEl, 'tag-pro.png', entry.proTag, 'ui-icon ui-icon-xs');
+        if (conEl && entry.conTag) {
+          setElementWithIcon(conEl, 'tag-con.png', entry.conTag, 'ui-icon ui-icon-xs');
+        }
       }
     }
   });
 
   // Etiquetas de los sliders cuantitativos vinculados a cada categoría
-  const setLinkedSliderLabel = (inputId: string, labelText: string) => {
+  const setLinkedSliderLabel = (inputId: string, iconFile: string, labelText: string) => {
     const labelSpan = document.querySelector<HTMLElement>(`label[for="${inputId}"] > span:first-child`);
-    if (labelSpan) labelSpan.textContent = labelText;
+    setElementWithIcon(labelSpan, iconFile, labelText, 'ui-icon ui-icon-sm');
   };
-  setLinkedSliderLabel('rngSize', age.params.size);
-  setLinkedSliderLabel('rngSpeed', age.params.speed);
-  setLinkedSliderLabel('rngArmor', age.params.armor);
-  setLinkedSliderLabel('rngPerception', age.params.perception);
-  setLinkedSliderLabel('rngToxin', age.params.toxin);
+  setLinkedSliderLabel('rngSize', 'param-size.png', age.params.size);
+  setLinkedSliderLabel('rngSpeed', 'param-speed.png', age.params.speed);
+  setLinkedSliderLabel('rngArmor', 'wall-gram-negative.png', age.params.armor);
+  setLinkedSliderLabel('rngPerception', 'param-perception.png', age.params.perception);
+  setLinkedSliderLabel('rngToxin', 'toxin-vials.png', age.params.toxin);
 
   document.querySelectorAll<HTMLElement>('.editor-right-col .linked-dna-badge .lbl').forEach((el) => {
     el.textContent = ui.dnaSequenceBadge;
@@ -798,21 +1413,46 @@ function applyTranslations(): void {
   setTextById('lblBrandSubtitle', ui.sidebar.brandSubtitle);
   setTextById('lblVersionBadge', ui.sidebar.versionBadge);
   setTextById('lblFounderStrainCard', ui.sidebar.founderStrainCard);
-  btnOpenEditorSidebar.textContent = ui.sidebar.btnOpenEditor;
+  setElementWithIcon(
+    btnOpenEditorSidebar,
+    'dna-helix.png',
+    ui.sidebar.btnOpenEditor,
+    'ui-icon ui-icon-sm'
+  );
   setTextById('lblPopDynamicsCard', ui.sidebar.populationDynamicsCard);
 
-  btnOpenEditorHud.textContent = ui.hud.btnEditorDna;
+  setElementWithIcon(btnOpenEditorHud, 'dna-helix.png', ui.hud.btnEditorDna, 'ui-icon ui-icon-xs');
   syncPauseButtonUI(btnPause.classList.contains('active'));
-  btnFeed.textContent = ui.hud.btnFeed;
-  btnRemoveSubstrate.textContent = ui.hud.btnRemoveSubstrate;
+  setElementWithIcon(btnFeed, 'pipette.png', ui.hud.btnFeed, 'ui-icon ui-icon-xs');
+  setElementWithIcon(
+    btnRemoveSubstrate,
+    'pipette.png',
+    ui.hud.btnRemoveSubstrate,
+    'ui-icon ui-icon-xs'
+  );
   btnDecreaseLightRadius.textContent = ui.hud.btnDecreaseLightRadius;
   btnIncreaseLightRadius.textContent = ui.hud.btnIncreaseLightRadius;
   btnResetCam.textContent = ui.hud.btnResetCam;
   syncDetailButtonUI();
 
-  setTextById('lblKpiBacteria', ui.hud.kpiBacteria);
-  setTextById('lblKpiSpores', ui.hud.kpiSpores);
-  setTextById('lblKpiNutrients', ui.hud.kpiNutrients);
+  setElementWithIcon(
+    document.getElementById('lblKpiBacteria'),
+    'species-ecoli.png',
+    ui.hud.kpiBacteria,
+    'ui-icon ui-icon-xs'
+  );
+  setElementWithIcon(
+    document.getElementById('lblKpiSpores'),
+    'reproduction-sporulation.png',
+    ui.hud.kpiSpores,
+    'ui-icon ui-icon-xs'
+  );
+  setElementWithIcon(
+    document.getElementById('lblKpiNutrients'),
+    'petri-colony.png',
+    ui.hud.kpiNutrients,
+    'ui-icon ui-icon-xs'
+  );
   setTextById('lblKpiMaxGen', ui.hud.kpiMaxGen);
   setTextById('lblKpiFps', ui.hud.kpiFps);
 
@@ -885,7 +1525,8 @@ function deployColonies(): void {
     userDNA,
     getSelectedRivalCount(),
     getSelectedInitialPop(),
-    getSelectedKnownSpecies()
+    getSelectedKnownSpecies(),
+    customRivals.map((entry) => entry.dna)
   );
 
   // Actualizar tarjeta resumen de la cepa activa en la barra lateral

@@ -11,6 +11,8 @@ El proyecto está construido como una aplicación web *Single Page Application* 
 ```text
 EvoLootIon/
 ├── index.html                        # Maquetación responsive (Sidebar + Viewport + Inspector + HUD)
+├── public/
+│   └── icons/                        # Iconos vectoriales rasterizados (128x128 en raíz y 512x512 en 512/)
 ├── package.json                      # Scripts de construcción y dependencias de desarrollo (Vite, TS)
 ├── tsconfig.json                     # Configuración estricta de TypeScript (ES2022, bundler)
 ├── MECANICAS_JUEGO.md                # Documentación funcional y modelo matemático
