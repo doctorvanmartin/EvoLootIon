@@ -78,15 +78,9 @@ export class ProceduralRenderer {
     const traits = b.dna.traits;
     const adapt: AdaptationType = traits.adaptation || 'none';
 
-    // Si está en estado de Endospora latente, se ve como un quiste mineralizado oscuro
+    // Si está en estado de Endospora latente, se ve como un quiste multicapa refractante (exosporio + cubierta + córtex + núcleo)
     if (b.isSpore) {
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${hue}, 25%, 30%)`;
-      ctx.fill();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#94a3b8';
-      ctx.stroke();
+      this.drawLatentEndospore(ctx, r, hue, lowDetail, b.animPhase);
       ctx.restore();
       return;
     }
@@ -118,24 +112,21 @@ export class ProceduralRenderer {
       ctx.fill();
     }
 
-    // 1. Halo exterior de Cápsula Mucosa
+    // 1. Halo exterior de Cápsula Mucosa (glicocálix hidratado con borde difuso)
     if (traits.wall === 'capsule' && !lowDetail) {
-      ctx.beginPath();
-      ctx.ellipse(0, 0, r * 1.65, r * 1.3, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${hue}, 85%, 65%, 0.22)`;
-      ctx.fill();
+      this.drawCapsuleHalo(ctx, r, hue, b.animPhase);
     }
 
-    // 2. Apéndices Locomotores (solo en nivel de detalle normal)
+    // 2. Apéndices Locomotores (solo en nivel de detalle alto)
     if (!lowDetail && !b.isDying) {
       if (traits.motility === 'flagellated') {
-        this.drawFlagellum(ctx, r, hue, b.animPhase);
+        this.drawFlagellum(ctx, r, hue, b.animPhase, traits.metabolism, b.dna.referenceSpecies?.morphology);
       } else if (traits.motility === 'ciliated') {
-        this.drawCilia(ctx, r, hue, b.animPhase);
+        this.drawCilia(ctx, r, hue, b.animPhase, traits.metabolism, b.dna.referenceSpecies?.morphology);
       } else if (traits.motility === 'spirochete') {
         this.drawAxialFilament(ctx, r, hue, b.animPhase);
       } else if (traits.motility === 'sessile') {
-        this.drawBiofilmPili(ctx, r, hue);
+        this.drawBiofilmPili(ctx, r, hue, b.animPhase);
       }
 
       if (traits.reproduction === 'conjugation') {
@@ -155,11 +146,31 @@ export class ProceduralRenderer {
       this.traceSomaPath(ctx, traits.metabolism, r, b.dna.referenceSpecies?.morphology);
     }
 
-    ctx.fillStyle = b.isDying ? `hsl(${hue}, 45%, 38%)` : `hsl(${hue}, 75%, 46%)`;
+    ctx.fillStyle = b.isDying ? `hsl(${hue}, 45%, 38%)` : `hsl(${hue}, 74%, 44%)`;
     ctx.fill();
 
+    // Sombreado volumétrico interno y ultraestructura intracelular en alto detalle
+    if (!lowDetail) {
+      ctx.save();
+      ctx.clip();
+      this.drawIntracellularUltrastructure(ctx, b, r, hue);
+      ctx.restore();
+
+      // Re-trazar el contorno del soma para que strokeCellWall pinte sobre el borde limpio
+      ctx.beginPath();
+      if (b.dividingProgress > 0) {
+        const sep = b.dividingProgress * r * 0.78;
+        const lobeR = r * (0.92 - b.dividingProgress * 0.14);
+        const childR = traits.reproduction === 'budding' ? lobeR * 0.72 : lobeR;
+        ctx.arc(-sep, 0, childR, 0, Math.PI * 2);
+        ctx.arc(sep, 0, lobeR, 0, Math.PI * 2);
+      } else {
+        this.traceSomaPath(ctx, traits.metabolism, r, b.dna.referenceSpecies?.morphology);
+      }
+    }
+
     // 4. Pared Celular
-    this.strokeCellWall(ctx, traits.wall, hue, lowDetail, b.isDying);
+    this.strokeCellWall(ctx, traits.wall, hue, lowDetail, b.isDying, b.dna.stats.armor);
 
     // 5. Atributos Únicos (Pinzas, Gran Boca, Pinchos, Bioluminiscencia, Ventosa)
     if (!lowDetail && adapt !== 'none') {
@@ -174,25 +185,23 @@ export class ProceduralRenderer {
       );
     }
 
-    // 6. Detalle intracelular ligero (vacuolas o vesículas químicas) en alto detalle
-    if (!lowDetail) {
+    // 6. Anillo contráctil FtsZ durante citocinesis en alto detalle
+    if (!lowDetail && b.dividingProgress > 0.12) {
+      const pinchHalfH = r * Math.max(0.18, 0.78 - b.dividingProgress * 0.55);
+      const septumX =
+        traits.reproduction === 'budding' ? -b.dividingProgress * r * 0.18 : 0;
       ctx.beginPath();
-      ctx.arc(r * 0.2, -r * 0.1, Math.max(1.4, r * 0.24), 0, Math.PI * 2);
-      ctx.fillStyle =
-        traits.interaction !== 'neutral'
-          ? 'rgba(244, 114, 182, 0.85)'
-          : `hsla(${(hue + 35) % 360}, 90%, 80%, 0.55)`;
-      ctx.fill();
+      ctx.moveTo(septumX, -pinchHalfH);
+      ctx.lineTo(septumX, pinchHalfH);
+      ctx.strokeStyle = `hsla(${hue}, 95%, 84%, 0.88)`;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
 
-      // Si está dividiéndose, mostrar constricción del septo central
-      if (b.dividingProgress > 0.15) {
-        ctx.beginPath();
-        ctx.moveTo(0, -r * (0.75 - b.dividingProgress * 0.5));
-        ctx.lineTo(0, r * (0.75 - b.dividingProgress * 0.5));
-        ctx.strokeStyle = `hsla(${hue}, 95%, 82%, 0.8)`;
-        ctx.lineWidth = 1.4;
-        ctx.stroke();
-      }
+      ctx.fillStyle = `hsla(${(hue + 35) % 360}, 95%, 88%, 0.9)`;
+      ctx.beginPath();
+      ctx.arc(septumX, -pinchHalfH, Math.max(1.0, r * 0.11), 0, Math.PI * 2);
+      ctx.arc(septumX, pinchHalfH, Math.max(1.0, r * 0.11), 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.restore();
@@ -248,25 +257,55 @@ export class ProceduralRenderer {
     wall: WallType,
     hue: number,
     lowDetail: boolean,
-    isDying: boolean
+    isDying: boolean,
+    armor: number = 0
   ): void {
     if (isDying) {
       ctx.setLineDash([3, 3]);
     }
-    ctx.lineWidth = wall === 'gram_positive' ? 3.0 : wall === 's_layer' ? 2.2 : 1.3;
-    ctx.strokeStyle = `hsl(${hue}, 90%, 24%)`;
+    const baseWidth =
+      wall === 'gram_positive'
+        ? 3.1 + armor * 0.1
+        : wall === 's_layer'
+          ? 2.3 + armor * 0.06
+          : wall === 'capsule'
+            ? 1.8
+            : 1.5;
+    ctx.lineWidth = baseWidth;
+    ctx.strokeStyle = `hsl(${hue}, 88%, 22%)`;
     ctx.stroke();
 
     if (!lowDetail) {
-      if (wall === 'gram_negative') {
-        ctx.strokeStyle = `hsla(${hue}, 90%, 72%, 0.55)`;
+      if (wall === 'gram_positive') {
+        // Borde denso interno de peptidoglicano reticulado con ácidos teicoicos
+        ctx.save();
+        ctx.strokeStyle = `hsla(${(hue + 14) % 360}, 85%, 64%, 0.55)`;
+        ctx.lineWidth = Math.max(1.1, baseWidth * 0.42);
+        ctx.stroke();
+        ctx.restore();
+      } else if (wall === 'gram_negative') {
+        // Bicapa lipídica externa translúcida + espacio periplásmico brillante
+        ctx.save();
+        ctx.strokeStyle = `hsla(${hue}, 95%, 76%, 0.65)`;
         ctx.lineWidth = 0.9;
         ctx.stroke();
+        ctx.setLineDash([1.2, 2.8]);
+        ctx.strokeStyle = `hsla(${(hue + 30) % 360}, 95%, 85%, 0.6)`;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.restore();
       } else if (wall === 's_layer') {
+        // Subunidades glicoproteicas cristalinas (teselado paracristalino)
         ctx.save();
-        ctx.setLineDash([2, 2.5]);
-        ctx.strokeStyle = `hsla(${(hue + 25) % 360}, 95%, 82%, 0.85)`;
-        ctx.lineWidth = 1.4;
+        ctx.setLineDash([2.0, 2.2]);
+        ctx.strokeStyle = `hsla(${(hue + 25) % 360}, 95%, 84%, 0.9)`;
+        ctx.lineWidth = 1.55;
+        ctx.stroke();
+        ctx.restore();
+      } else if (wall === 'capsule') {
+        ctx.save();
+        ctx.strokeStyle = `hsla(${hue}, 90%, 78%, 0.5)`;
+        ctx.lineWidth = 0.85;
         ctx.stroke();
         ctx.restore();
       }
@@ -274,6 +313,363 @@ export class ProceduralRenderer {
     if (isDying) {
       ctx.setLineDash([]);
     }
+  }
+
+  /**
+   * Dibuja una endospora bacteriana latente con arquitectura concéntrica realista:
+   * exosporio laxo, túnica proteica laminada, córtex de peptidoglicano, pared germinal y
+   * protoplasto central birrefringente (complejo Ca²⁺-ácido dipicolínico).
+   */
+  private static drawLatentEndospore(
+    ctx: CanvasRenderingContext2D,
+    r: number,
+    hue: number,
+    lowDetail: boolean,
+    phase: number
+  ): void {
+    const rx = r * 0.92;
+    const ry = r * 0.68;
+
+    if (lowDetail) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `hsl(${hue}, 30%, 28%)`;
+      ctx.fill();
+      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx * 0.48, ry * 0.48, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fill();
+      return;
+    }
+
+    ctx.save();
+    // 1. Halo refractivo de microscopía de contraste de fases
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 1.32, ry * 1.34, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 60%, 82%, 0.14)`;
+    ctx.fill();
+
+    // 2. Exosporio basal membranoso (velo poligonal/ovalado tenue con apéndices polares)
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 1.18, ry * 1.16, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 32%, 22%, 0.52)`;
+    ctx.fill();
+    ctx.setLineDash([2.2, 1.8]);
+    ctx.lineWidth = 1.0;
+    ctx.strokeStyle = `hsla(${hue}, 45%, 70%, 0.55)`;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Crestas polares del exosporio
+    ctx.beginPath();
+    ctx.moveTo(-rx * 1.28, 0);
+    ctx.lineTo(-rx * 0.98, 0);
+    ctx.moveTo(rx * 0.98, 0);
+    ctx.lineTo(rx * 1.28, 0);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
+    // 3. Túnica proteica externa (Spore Coat) queratinizada y densa
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${hue}, 28%, 20%)`;
+    ctx.fill();
+    ctx.lineWidth = 2.1;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.stroke();
+
+    // Estrías concéntricas de la cubierta laminar
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.86, ry * 0.85, 0, 0, Math.PI * 2);
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)';
+    ctx.stroke();
+
+    // 4. Córtex de peptidoglicano modificado (anillo refractante ambarino/azulado)
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.74, ry * 0.72, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${(hue + 20) % 360}, 52%, 44%, 0.88)`;
+    ctx.fill();
+    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = `hsla(${hue}, 70%, 76%, 0.75)`;
+    ctx.stroke();
+
+    // 5. Nucleoide y protoplasto deshidratado con dipicolinato de calcio (alta birrefringencia óptica)
+    const shimmer = 0.88 + Math.sin(phase * 0.8) * 0.08;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.48, ry * 0.46, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(241, 245, 249, ${shimmer})`;
+    ctx.fill();
+
+    // Cromatina condensada con proteínas SASPs en el centro del core
+    ctx.beginPath();
+    ctx.moveTo(-rx * 0.24, 0);
+    ctx.quadraticCurveTo(0, -ry * 0.18, rx * 0.24, 0);
+    ctx.quadraticCurveTo(0, ry * 0.18, -rx * 0.24, 0);
+    ctx.strokeStyle = `hsla(${hue}, 80%, 35%, 0.65)`;
+    ctx.lineWidth = 1.0;
+    ctx.stroke();
+
+    // Destello especular vítreo de microscopía de contraste de fases
+    ctx.beginPath();
+    ctx.ellipse(-rx * 0.18, -ry * 0.16, rx * 0.2, ry * 0.13, -0.35, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /**
+   * Dibuja una pre-espora (endospora en maduración dentro del esporangio materno)
+   * para bacterias con estrategia reproductiva de esporulación.
+   */
+  private static drawForesporeBody(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    r: number,
+    hue: number
+  ): void {
+    const sx = Math.max(2.1, r * 0.34);
+    const sy = Math.max(1.6, r * 0.25);
+
+    ctx.save();
+    // Tabique asimétrico de esporulación / membrana de engullimiento
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, sx * 1.25, sy * 1.25, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 50%, 22%, 0.55)`;
+    ctx.fill();
+    ctx.lineWidth = 0.85;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.78)';
+    ctx.stroke();
+
+    // Córtex de dipicolinato cálcico
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, sx * 0.92, sy * 0.9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(203, 213, 225, 0.88)';
+    ctx.fill();
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = `hsla(${hue}, 75%, 32%, 0.8)`;
+    ctx.stroke();
+
+    // Core birrefringente brillante
+    ctx.beginPath();
+    ctx.ellipse(cx - sx * 0.14, cy - sy * 0.14, sx * 0.45, sy * 0.42, -0.25, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza la ultraestructura intracelular (citoplasma periférico, nucleoide fibrilar,
+   * orgánulos metabólicos especializados, ribosomas, gránulos de reserva y pre-espora).
+   * Se ejecuta dentro del clip del soma celular en nivel de detalle alto.
+   */
+  private static drawIntracellularUltrastructure(
+    ctx: CanvasRenderingContext2D,
+    b: Bacteria,
+    r: number,
+    hue: number
+  ): void {
+    const traits = b.dna.traits;
+    const morphology = b.dna.referenceSpecies?.morphology;
+    const energyRatio = Math.max(0.1, Math.min(1.2, b.energy / b.dna.stats.splitEnergy));
+
+    // 1. Ectoplasma claro e iluminación cenital sub-membrana (efecto contraste de fases / DIC)
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.08, -r * 0.22, r * 0.95, r * 0.48, -0.1, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${(hue + 15) % 360}, 88%, 72%, 0.22)`;
+    ctx.fill();
+
+    // Sombra basal citoplasmática para dar volumen 3D al soma
+    ctx.beginPath();
+    ctx.ellipse(r * 0.08, r * 0.36, r * 1.05, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 82%, 18%, 0.26)`;
+    ctx.fill();
+
+    if (morphology === 'coccus_cluster') {
+      // En estafilococos (racimos de cocos), dibujar tabiques intercelulares y nucleoides individuales
+      ctx.strokeStyle = `hsla(${hue}, 85%, 22%, 0.65)`;
+      ctx.lineWidth = 0.95;
+      for (let i = 0; i < this.COCCUS_CLUSTER_CENTERS.length; i++) {
+        const c = this.COCCUS_CLUSTER_CENTERS[i];
+        const cx = c[0] * r;
+        const cy = c[1] * r;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.46, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx - r * 0.07, cy - r * 0.07, r * 0.17, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${(hue + 30) % 360}, 90%, 82%, 0.42)`;
+        ctx.fill();
+      }
+      return;
+    }
+
+    // 2. Nucleoide bacteriano (ADN genómico condensado en lazos superenrollados sin membrana nuclear)
+    const isSpherical = morphology === 'coccus' || traits.metabolism === 'photosynthetic';
+    ctx.save();
+    ctx.strokeStyle = `hsla(${(hue + 32) % 360}, 92%, 82%, 0.42)`;
+    ctx.lineWidth = Math.max(0.85, r * 0.11);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (isSpherical) {
+      ctx.arc(0, 0, r * 0.36, 0.2, Math.PI * 1.65);
+      ctx.moveTo(-r * 0.22, -r * 0.12);
+      ctx.quadraticCurveTo(r * 0.08, r * 0.22, r * 0.26, -r * 0.08);
+    } else {
+      const spanX = r * 0.56;
+      ctx.moveTo(-spanX, -r * 0.08);
+      ctx.bezierCurveTo(-spanX * 0.35, -r * 0.34, spanX * 0.35, r * 0.34, spanX, -r * 0.06);
+      ctx.moveTo(-spanX * 0.85, r * 0.12);
+      ctx.bezierCurveTo(-spanX * 0.25, r * 0.32, spanX * 0.25, -r * 0.3, spanX * 0.85, r * 0.1);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. Ultraestructura específica según el tipo metabólico
+    if (traits.metabolism === 'photosynthetic') {
+      // Lamelas tilacoidales concéntricas ricas en clorofila y ficobilisomas
+      ctx.save();
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.55)';
+      ctx.lineWidth = Math.max(0.8, r * 0.09);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.72, -Math.PI * 0.82, Math.PI * 0.18);
+      ctx.moveTo(
+        Math.cos(Math.PI * 0.35) * r * 0.54,
+        Math.sin(Math.PI * 0.35) * r * 0.54
+      );
+      ctx.arc(0, 0, r * 0.54, Math.PI * 0.35, Math.PI * 1.28);
+      ctx.stroke();
+      ctx.restore();
+    } else if (traits.metabolism === 'chemolithotroph') {
+      // Carboxisomas poliédricos e inclusiones de azufre/hierro refractantes
+      ctx.save();
+      ctx.fillStyle = 'rgba(253, 224, 71, 0.65)';
+      ctx.strokeStyle = 'rgba(161, 98, 7, 0.7)';
+      ctx.lineWidth = 0.7;
+      for (let i = -1; i <= 1; i += 2) {
+        const cx = i * r * 0.38;
+        const cy = i * r * 0.12;
+        const cr = Math.max(1.2, r * 0.18);
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const ang = (k / 6) * Math.PI * 2;
+          const vx = cx + Math.cos(ang) * cr;
+          const vy = cy + Math.sin(ang) * cr;
+          if (k === 0) ctx.moveTo(vx, vy);
+          else ctx.lineTo(vx, vy);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (traits.metabolism === 'fermenter') {
+      // Vesículas de gas / fermentación y tabique diplocócico central
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.58);
+      ctx.lineTo(0, r * 0.58);
+      ctx.strokeStyle = `hsla(${hue}, 85%, 22%, 0.55)`;
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(254, 240, 138, 0.6)';
+      ctx.beginPath();
+      ctx.arc(-r * 0.45, -r * 0.15, Math.max(1.1, r * 0.16), 0, Math.PI * 2);
+      ctx.arc(r * 0.42, r * 0.14, Math.max(1.0, r * 0.14), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (traits.metabolism === 'predator') {
+      // Vacuolas digestivas fagolisosómicas con enzimas líticas
+      ctx.save();
+      ctx.fillStyle = 'rgba(251, 113, 133, 0.65)';
+      ctx.beginPath();
+      ctx.arc(-r * 0.25, r * 0.12, Math.max(1.3, r * 0.2), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 228, 230, 0.6)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      ctx.restore();
+    } else if (traits.metabolism === 'saprophyte') {
+      // Lisosomas / vesículas de exoenzimas hidrolíticas
+      ctx.save();
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.65)';
+      ctx.beginPath();
+      ctx.arc(-r * 0.32, -r * 0.16, Math.max(1.1, r * 0.15), 0, Math.PI * 2);
+      ctx.arc(r * 0.05, r * 0.22, Math.max(1.0, r * 0.14), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 4. Vesículas secretoras de guerra química o gránulo de reserva de polihidroxialcanoato (PHA)
+    const vacuoleR = Math.max(1.3, r * (0.16 + energyRatio * 0.08));
+    ctx.beginPath();
+    ctx.arc(r * 0.34, -r * 0.12, vacuoleR, 0, Math.PI * 2);
+    if (traits.interaction === 'siderophores') {
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.88)';
+    } else if (traits.interaction !== 'neutral') {
+      ctx.fillStyle = 'rgba(244, 114, 182, 0.88)';
+    } else {
+      ctx.fillStyle = `hsla(${(hue + 38) % 360}, 92%, 82%, 0.65)`;
+    }
+    ctx.fill();
+
+    // Plásmido episomal circular si posee conjugación
+    if (traits.reproduction === 'conjugation') {
+      ctx.beginPath();
+      ctx.arc(r * 0.48, r * 0.16, Math.max(1.1, r * 0.15), 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.85)';
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+    }
+
+    // 5. Pre-espora polar refringente si la bacteria posee el gen de esporulación
+    if (traits.reproduction === 'sporulation') {
+      const sporeX = isSpherical ? -r * 0.32 : -r * 0.56;
+      this.drawForesporeBody(ctx, sporeX, 0, r, hue);
+    }
+
+    // 6. Punteado ribosomal 70S y gránulos de volutina en el citosol
+    ctx.fillStyle = `hsla(${(hue + 20) % 360}, 95%, 92%, 0.55)`;
+    ctx.beginPath();
+    ctx.arc(-r * 0.12, -r * 0.24, 0.75, 0, Math.PI * 2);
+    ctx.arc(r * 0.18, r * 0.22, 0.75, 0, Math.PI * 2);
+    ctx.arc(r * 0.52, -r * 0.04, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private static drawCapsuleHalo(
+    ctx: CanvasRenderingContext2D,
+    r: number,
+    hue: number,
+    phase: number
+  ): void {
+    const breath = 1 + Math.sin(phase * 0.9) * 0.03;
+    ctx.save();
+    // Capa mucosa exterior de exopolisacáridos
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.72 * breath, r * 1.34 * breath, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 85%, 65%, 0.18)`;
+    ctx.fill();
+    ctx.setLineDash([3, 2.5]);
+    ctx.strokeStyle = `hsla(${hue}, 92%, 78%, 0.38)`;
+    ctx.lineWidth = 0.85;
+    ctx.stroke();
+
+    // Capa densa interna del glicocálix
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.46, r * 1.12, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 88%, 70%, 0.14)`;
+    ctx.fill();
+    ctx.restore();
   }
 
   private static drawUniqueAdaptation(
