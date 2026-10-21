@@ -34,6 +34,9 @@ export class Bacteria {
   public isAttackingTimer: number = 0;
   public isSpore: boolean = false;
   public isEmittingToxin: boolean = false;
+  public isInfectedByPhage: boolean = false;
+  public phageInfectionProgress: number = 0;
+  public burstPhagesPending: boolean = false;
   public animPhase: number = Math.random() * 100;
 
   // Buffers estáticos reutilizables para consultas espaciales sin GC
@@ -54,7 +57,7 @@ export class Bacteria {
   }
 
   public get effectiveSplitEnergy(): number {
-    const suctionPenalty = this.dna.traits.adaptation === 'suction_pore' ? 1.15 : 1.0;
+    const suctionPenalty = this.dna.hasAdaptation('suction_pore') ? 1.15 : 1.0;
     return this.dna.stats.splitEnergy * suctionPenalty;
   }
 
@@ -111,6 +114,35 @@ export class Bacteria {
     return this.dna.stats.dragFactor * this.growthScale;
   }
 
+  /**
+   * Intenta adsorber un bacteriófago T4 sobre los receptores de la envoltura celular.
+   * La Capa S cristalina y la Cápsula mucosa enmascaran los receptores reduciendo la probabilidad.
+   */
+  public tryAdsorbPhage(): boolean {
+    if (this.isDead || this.isDying || this.isSpore || this.isInfectedByPhage) {
+      return false;
+    }
+    const wall = this.dna.traits.wall;
+    const wallPassChance =
+      wall === 's_layer'
+        ? 0.35
+        : wall === 'capsule'
+          ? 0.5
+          : wall === 'gram_positive'
+            ? 0.75
+            : 1.0;
+    const spikesFactor = this.dna.hasAdaptation('spikes') ? 0.8 : 1.0;
+    const armorFactor = 1 / (1 + this.dna.stats.armor * 0.08);
+    if (Math.random() <= wallPassChance * spikesFactor * armorFactor) {
+      this.isInfectedByPhage = true;
+      this.phageInfectionProgress = 0.02;
+      this.dividingProgress = 0;
+      this.beingAttackedTimer = 0.35;
+      return true;
+    }
+    return false;
+  }
+
   public update(
     dt: number,
     gridNutrients: SpatialHashGrid<Nutrient>,
@@ -148,8 +180,8 @@ export class Bacteria {
     this.age += dt;
     this.isEmittingToxin = false;
 
-    // 1. Gestión de Esporulación (Estado latente defensivo ante hambruna)
-    if (this.dna.traits.reproduction === 'sporulation') {
+    // 1. Gestión de Esporulación (Estado latente defensivo ante hambruna; imposible si ya fue secuestrada por un fago)
+    if (this.dna.traits.reproduction === 'sporulation' && !this.isInfectedByPhage) {
       if (!this.isSpore && this.energy < SimConfig.SPORULATION_THRESHOLD) {
         this.isSpore = true;
         this.dividingProgress = 0;
@@ -173,6 +205,20 @@ export class Bacteria {
       return null;
     }
 
+    // 1.b Progresión del ciclo lítico intracelular si está infectada por un bacteriófago
+    if (this.isInfectedByPhage) {
+      this.phageInfectionProgress += dt / SimConfig.PHAGE_INCUBATION_TIME;
+      this.energy -= SimConfig.PHAGE_INFECTED_METABOLIC_DRAIN * dt;
+      this.dividingProgress = 0;
+      if (this.phageInfectionProgress >= 1.0) {
+        this.phageInfectionProgress = 1.0;
+        this.isDying = true;
+        this.burstPhagesPending = true;
+        this.isEmittingToxin = false;
+        return null;
+      }
+    }
+
     this.divisionCooldown = Math.max(0, this.divisionCooldown - dt);
 
     // 2. Búsqueda de entorno en O(1) usando buffers preasignados (Zero-GC)
@@ -192,10 +238,13 @@ export class Bacteria {
     // 3. Quimiotaxis / Fototaxis y locomoción fluida
     this.computeLocomotion(dt, nearbyNutrients, nearbyBacteria, bounds);
 
-    // Si está en pleno proceso de división, reduce su velocidad de desplazamiento
+    // Si está en pleno proceso de división o secuestrada por replicación vírica, reduce su velocidad
     if (this.dividingProgress > 0) {
       this.vx *= 0.42;
       this.vy *= 0.42;
+    } else if (this.isInfectedByPhage) {
+      this.vx *= 0.76;
+      this.vy *= 0.76;
     }
 
     // 3.b Repulsión estérica suave y resolución de colisiones cuerpo a cuerpo
@@ -226,8 +275,8 @@ export class Bacteria {
       }
     }
 
-    // Adaptación única: Ventosa / Arpón contráctil atrae el nutriente más cercano
-    if (this.dna.traits.adaptation === 'suction_pore') {
+    // Adaptación: Ventosa / Arpón contráctil atrae el nutriente más cercano
+    if (this.dna.hasAdaptation('suction_pore')) {
       this.applySuctionPore(nearbyNutrients, dt);
     }
 
@@ -252,9 +301,9 @@ export class Bacteria {
       this.attemptPredation(nearbyBacteria, dt);
     } else {
       this.consumeNearbyNutrients(gridNutrients);
-      if (this.dna.traits.adaptation === 'spikes') {
-        this.applyDefensiveSpikes(nearbyBacteria, dt);
-      }
+    }
+    if (this.dna.hasAdaptation('spikes')) {
+      this.applyDefensiveSpikes(nearbyBacteria, dt);
     }
 
     if (this.energy <= 0) {
@@ -263,9 +312,10 @@ export class Bacteria {
       return null;
     }
 
-    // 6. División celular gradual
+    // 6. División celular gradual (imposible si la maquinaria celular está secuestrada por un fago)
     const splitThreshold = this.effectiveSplitEnergy;
     if (
+      !this.isInfectedByPhage &&
       this.divisionCooldown <= 0 &&
       (this.energy >= splitThreshold || this.dividingProgress > 0)
     ) {
@@ -311,7 +361,7 @@ export class Bacteria {
 
     const shadingFactor = 1 / (1 + shadingNeighbors * SimConfig.PHOTOSYNTHESIS_SHADING_COEFF);
     const baseIrradiance = rawLight * shadingFactor;
-    if (this.dna.traits.adaptation === 'bioluminescence') {
+    if (this.dna.hasAdaptation('bioluminescence')) {
       return Math.max(0.55 * shadingFactor, baseIrradiance);
     }
     return baseIrradiance;
@@ -634,7 +684,7 @@ export class Bacteria {
         const sLayerShield = rival.dna.traits.wall === 's_layer' ? 0.8 : 1.0;
         const lithoShield = rival.dna.traits.metabolism === 'chemolithotroph' ? 0.8 : 1.0;
         const sporeShield = rival.isSpore ? 0.15 : 1.0;
-        const mawVuln = rival.dna.traits.adaptation === 'giant_maw' ? 0.75 : 1.0;
+        const mawVuln = rival.dna.hasAdaptation('giant_maw') ? 0.75 : 1.0;
 
         const rawDmg =
           this.dna.stats.toxinPower *
@@ -674,12 +724,12 @@ export class Bacteria {
         const evasionFactor =
           (prey.dna.traits.wall === 'capsule' ? 0.5 : 1.0) *
           (prey.dna.traits.motility === 'spirochete' ? 0.75 : 1.0) *
-          (prey.dna.traits.adaptation === 'bioluminescence' ? 0.72 : 1.0) *
+          (prey.dna.hasAdaptation('bioluminescence') ? 0.72 : 1.0) *
           (prey.dna.traits.motility === 'sessile' ? 0.85 : 1.0);
 
-        const clawBonus = this.dna.traits.adaptation === 'claws' ? 1.45 : 1.0;
-        const mawBonus = this.dna.traits.adaptation === 'giant_maw' ? 1.25 : 1.0;
-        const preyArmorEff = prey.dna.traits.adaptation === 'giant_maw' ? 0.75 : 1.0;
+        const clawBonus = this.dna.hasAdaptation('claws') ? 1.45 : 1.0;
+        const mawBonus = this.dna.hasAdaptation('giant_maw') ? 1.25 : 1.0;
+        const preyArmorEff = prey.dna.hasAdaptation('giant_maw') ? 0.75 : 1.0;
 
         const biteDmg =
           (SimConfig.PREDATION_BITE_DPS * dt * evasionFactor * clawBonus) /
@@ -690,16 +740,17 @@ export class Bacteria {
         this.isAttackingTimer = 0.28;
 
         // Si el predador tiene pinzas, frena a la presa sujetándola
-        if (this.dna.traits.adaptation === 'claws') {
+        if (this.dna.hasAdaptation('claws')) {
           prey.vx *= 0.4;
           prey.vy *= 0.4;
         }
 
-        // Daño reflejado si la presa tiene Pinchos Calcáreos o Capa S Cristalina
-        if (prey.dna.traits.adaptation === 'spikes') {
+        // Daño reflejado si la presa tiene Pinchos Calcáreos o Capa S Cristalina (pueden acumularse)
+        if (prey.dna.hasAdaptation('spikes')) {
           this.energy -= biteDmg * 0.4;
           this.beingAttackedTimer = 0.25;
-        } else if (prey.dna.traits.wall === 's_layer') {
+        }
+        if (prey.dna.traits.wall === 's_layer') {
           this.energy -= biteDmg * 0.2;
         }
 
@@ -712,7 +763,7 @@ export class Bacteria {
   }
 
   private consumeNearbyNutrients(gridNutrients: SpatialHashGrid<Nutrient>): void {
-    const extraReach = this.dna.traits.adaptation === 'giant_maw' ? 9 : 4;
+    const extraReach = this.dna.hasAdaptation('giant_maw') ? 9 : 4;
     const contact = gridNutrients.queryRadius(
       this.x,
       this.y,
@@ -721,7 +772,7 @@ export class Bacteria {
     );
 
     const metabolism = this.dna.traits.metabolism;
-    const mawBonus = this.dna.traits.adaptation === 'giant_maw' ? 1.25 : 1.0;
+    const mawBonus = this.dna.hasAdaptation('giant_maw') ? 1.25 : 1.0;
 
     for (let i = 0; i < contact.length; i++) {
       const n = contact[i];

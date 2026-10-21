@@ -1,5 +1,6 @@
 import { Bacteria, WorldEnvironment } from '../models/Bacteria';
 import { DNA, MetabolismType } from '../models/DNA';
+import { Bacteriophage, HostAgentId, Neutrophil } from '../models/HostAgents';
 import { createKnownSpeciesDNA, KnownSpeciesId } from '../models/KnownSpeciesCatalog';
 import { Nutrient } from '../models/Nutrient';
 import { SpatialHashGrid } from './SpatialHashGrid';
@@ -21,6 +22,8 @@ export interface SimulationTelemetry {
   totalBacteria: number;
   totalSpores: number;
   totalNutrients: number;
+  totalPhages: number;
+  totalNeutrophils: number;
   maxGeneration: number;
   fps: number;
   isPaused: boolean;
@@ -35,10 +38,16 @@ export class SimulationEngine {
   private ctx: CanvasRenderingContext2D;
   private bacteria: Bacteria[] = [];
   private nutrients: Nutrient[] = [];
+  private phages: Bacteriophage[] = [];
+  private neutrophils: Neutrophil[] = [];
   private offspringBuffer: Bacteria[] = [];
   private nutrientClusterCenters: Array<{ x: number; y: number }> = [];
   private nutrientSpawnTimer: number = 0;
   private autoSubstrateEnabled: boolean = true;
+  private autoPhagesEnabled: boolean = false;
+  private autoNeutrophilsEnabled: boolean = false;
+  private phageWaveTimer: number = 0;
+  private neutrophilWaveTimer: number = 0;
 
   private gridNutrients = new SpatialHashGrid<Nutrient>(SimConfig.CELL_SIZE);
   private gridBacteria = new SpatialHashGrid<Bacteria>(SimConfig.CELL_SIZE);
@@ -79,6 +88,7 @@ export class SimulationEngine {
   private fps: number = 60;
   private history: Array<{ time: number; counts: Record<string, number> }> = [];
   public selectedBacteriaId: number | null = null;
+  public isFollowingSelected: boolean = false;
   private onTelemetryCallback?: (telemetry: SimulationTelemetry) => void;
 
   constructor(canvas: HTMLCanvasElement, onTelemetry?: (telemetry: SimulationTelemetry) => void) {
@@ -103,6 +113,7 @@ export class SimulationEngine {
   }
 
   public resetCamera(): void {
+    this.isFollowingSelected = false;
     const viewW = this.canvas.clientWidth || 800;
     const viewH = this.canvas.clientHeight || 600;
     const fitZoom = Math.min(viewW / this.worldWidth, viewH / this.worldHeight) * 0.94;
@@ -111,22 +122,41 @@ export class SimulationEngine {
     this.camera.y = (viewH - this.worldHeight * this.camera.zoom) * 0.5;
   }
 
+  public centerCameraOn(worldX: number, worldY: number): void {
+    const viewW = this.canvas.clientWidth || 800;
+    const viewH = this.canvas.clientHeight || 600;
+    this.camera.x = viewW * 0.5 - worldX * this.camera.zoom;
+    this.camera.y = viewH * 0.5 - worldY * this.camera.zoom;
+  }
+
+  public stopFollowingSelected(): void {
+    this.isFollowingSelected = false;
+  }
+
   public initColonies(
     userDNA: DNA,
     rivalCount: number = SimConfig.DEFAULT_RIVAL_COLONIES,
     initialColonySize: number = SimConfig.INITIAL_COLONY_SIZE,
     knownSpeciesIds: readonly KnownSpeciesId[] = [],
-    customRivalDNAs: readonly DNA[] = []
+    customRivalDNAs: readonly DNA[] = [],
+    initialHostAgents: readonly HostAgentId[] = []
   ): void {
     this.bacteria.length = 0;
     this.nutrients.length = 0;
+    this.phages.length = 0;
+    this.neutrophils.length = 0;
     this.nutrientClusterCenters.length = 0;
     this.nutrientSpawnTimer = 0;
     this.autoSubstrateEnabled = true;
+    this.autoPhagesEnabled = initialHostAgents.includes('bacteriophage_t4');
+    this.autoNeutrophilsEnabled = initialHostAgents.includes('neutrophil_pmn');
+    this.phageWaveTimer = 0;
+    this.neutrophilWaveTimer = 0;
     this.history.length = 0;
     this.elapsedTime = 0;
     this.historyTimer = 0;
     this.selectedBacteriaId = null;
+    this.isFollowingSelected = false;
 
     const clampedRivals = Math.max(0, Math.min(SimConfig.MAX_RIVAL_COLONIES, Math.round(rivalCount)));
     const count = Math.max(
@@ -304,6 +334,14 @@ export class SimulationEngine {
       this.spawnNutrient(baseClusterSize + (i < extraNutrients ? 1 : 0));
     }
 
+    // 5. Agentes biológicos externos seleccionados desde el inicio (Bacteriófagos T4 y Neutrófilos)
+    if (this.autoPhagesEnabled) {
+      this.spawnPhages(SimConfig.INITIAL_PHAGE_COUNT, true, 2.2);
+    }
+    if (this.autoNeutrophilsEnabled) {
+      this.spawnNeutrophils(SimConfig.INITIAL_NEUTROPHIL_COUNT, true);
+    }
+
     this.recordHistorySnapshot();
     this.emitTelemetry();
   }
@@ -448,6 +486,91 @@ export class SimulationEngine {
     }
   }
 
+  public spawnPhages(
+    count: number = SimConfig.MANUAL_PHAGE_WAVE_COUNT,
+    enableAutoSpawn: boolean = false,
+    initialCooldown: number = 0.25
+  ): void {
+    if (enableAutoSpawn) {
+      this.autoPhagesEnabled = true;
+    }
+    const available = Math.max(0, SimConfig.MAX_PHAGES - this.phages.length);
+    const toSpawn = Math.min(Math.max(0, Math.floor(count)), available);
+    if (toSpawn <= 0) return;
+
+    const margin = 60;
+    const centerX = margin + Math.random() * Math.max(100, this.worldWidth - margin * 2);
+    const centerY = margin + Math.random() * Math.max(100, this.worldHeight - margin * 2);
+
+    for (let i = 0; i < toSpawn; i++) {
+      const angle = (i / toSpawn) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist = Math.sqrt(Math.random()) * 42;
+      this.phages.push(
+        new Bacteriophage(
+          centerX + Math.cos(angle) * dist,
+          centerY + Math.sin(angle) * dist,
+          angle,
+          initialCooldown
+        )
+      );
+    }
+    this.emitTelemetry();
+  }
+
+  public removePhages(count: number = SimConfig.MANUAL_PHAGE_WAVE_COUNT): void {
+    this.autoPhagesEnabled = false;
+    this.phageWaveTimer = 0;
+    const removeCount = Math.min(Math.max(0, Math.floor(count)), this.phages.length);
+    for (let i = 0; i < removeCount; i++) {
+      const index = Math.floor(Math.random() * this.phages.length);
+      const lastIndex = this.phages.length - 1;
+      this.phages[index] = this.phages[lastIndex];
+      this.phages.pop();
+    }
+    if (this.phages.length === 0) {
+      // Si se retiran todos los fagos, limpiar también infecciones en curso
+      for (let i = 0; i < this.bacteria.length; i++) {
+        this.bacteria[i].isInfectedByPhage = false;
+        this.bacteria[i].phageInfectionProgress = 0;
+        this.bacteria[i].burstPhagesPending = false;
+      }
+    }
+    this.emitTelemetry();
+  }
+
+  public spawnNeutrophils(
+    count: number = SimConfig.MANUAL_NEUTROPHIL_COUNT,
+    enableAutoSpawn: boolean = false
+  ): void {
+    if (enableAutoSpawn) {
+      this.autoNeutrophilsEnabled = true;
+    }
+    const available = Math.max(0, SimConfig.MAX_NEUTROPHILS - this.neutrophils.length);
+    const toSpawn = Math.min(Math.max(0, Math.floor(count)), available);
+    if (toSpawn <= 0) return;
+
+    const margin = 80;
+    for (let i = 0; i < toSpawn; i++) {
+      const x = margin + Math.random() * Math.max(100, this.worldWidth - margin * 2);
+      const y = margin + Math.random() * Math.max(100, this.worldHeight - margin * 2);
+      this.neutrophils.push(new Neutrophil(x, y));
+    }
+    this.emitTelemetry();
+  }
+
+  public removeNeutrophils(count: number = SimConfig.MANUAL_NEUTROPHIL_COUNT): void {
+    this.autoNeutrophilsEnabled = false;
+    this.neutrophilWaveTimer = 0;
+    const removeCount = Math.min(Math.max(0, Math.floor(count)), this.neutrophils.length);
+    for (let i = 0; i < removeCount; i++) {
+      const index = Math.floor(Math.random() * this.neutrophils.length);
+      const lastIndex = this.neutrophils.length - 1;
+      this.neutrophils[index] = this.neutrophils[lastIndex];
+      this.neutrophils.pop();
+    }
+    this.emitTelemetry();
+  }
+
   public start(): void {
     if (this.isRunning) return;
     this.isRunning = true;
@@ -488,6 +611,7 @@ export class SimulationEngine {
       }
     }
     this.selectedBacteriaId = null;
+    this.isFollowingSelected = false;
     return null;
   }
 
@@ -507,7 +631,14 @@ export class SimulationEngine {
       }
     }
 
-    this.selectedBacteriaId = closest ? closest.id : null;
+    if (closest) {
+      this.selectedBacteriaId = closest.id;
+      this.isFollowingSelected = true;
+      this.centerCameraOn(closest.x, closest.y);
+    } else {
+      this.selectedBacteriaId = null;
+      this.isFollowingSelected = false;
+    }
     return closest;
   }
 
@@ -584,13 +715,95 @@ export class SimulationEngine {
     this.gridNutrients.build(this.nutrients);
     this.gridBacteria.build(this.bacteria);
 
-    // 3. Actualización de agentes
+    // 3. Actualización de agentes bacterianos
     for (let i = 0; i < this.bacteria.length; i++) {
       const b = this.bacteria[i];
       if (b.isDead) continue;
       const child = b.update(dt, this.gridNutrients, this.gridBacteria, this.envBounds);
       if (child) {
         this.offspringBuffer.push(child);
+      }
+      // Si la bacteria acaba de alcanzar el estallido lítico por fagos, liberar nuevos viriones
+      if (b.burstPhagesPending) {
+        b.burstPhagesPending = false;
+        const canSpawn = Math.min(
+          SimConfig.PHAGE_BURST_SIZE,
+          Math.max(0, SimConfig.MAX_PHAGES - this.phages.length)
+        );
+        const baseAngle = Math.random() * Math.PI * 2;
+        for (let p = 0; p < canSpawn; p++) {
+          const ang = baseAngle + (p / SimConfig.PHAGE_BURST_SIZE) * Math.PI * 2;
+          const dist = b.radius * 0.85;
+          this.phages.push(
+            new Bacteriophage(
+              b.x + Math.cos(ang) * dist,
+              b.y + Math.sin(ang) * dist,
+              ang,
+              SimConfig.PHAGE_SPAWN_COOLDOWN
+            )
+          );
+        }
+      }
+    }
+
+    // 3.b Actualización y compactación in-place de Bacteriófagos T4 (Zero-GC)
+    let writeP = 0;
+    for (let i = 0; i < this.phages.length; i++) {
+      const p = this.phages[i];
+      p.update(dt, this.gridBacteria, this.envBounds);
+      if (!p.isDead) {
+        this.phages[writeP++] = p;
+      }
+    }
+    this.phages.length = writeP;
+
+    // 3.c Actualización y compactación in-place de Neutrófilos PMN (Zero-GC)
+    let writeW = 0;
+    for (let i = 0; i < this.neutrophils.length; i++) {
+      const n = this.neutrophils[i];
+      n.update(dt, this.gridBacteria, this.envBounds);
+      if (n.isDead) {
+        // Al entrar en apoptosis tras su patrulla inmunitaria, el neutrófilo libera restos orgánicos ricos
+        for (let k = 0; k < 3; k++) {
+          const ang = (k / 3) * Math.PI * 2 + n.angle;
+          this.nutrients.push(
+            new Nutrient(
+              n.x + Math.cos(ang) * (n.radius * 0.5),
+              n.y + Math.sin(ang) * (n.radius * 0.5),
+              SimConfig.BASE_NUTRIENT_ENERGY * 1.35,
+              true,
+              205,
+              ang
+            )
+          );
+        }
+      } else {
+        this.neutrophils[writeW++] = n;
+      }
+    }
+    this.neutrophils.length = writeW;
+
+    // 3.d Reintroducción periódica suave si los agentes externos estaban activos y se agotaron
+    if (this.autoPhagesEnabled) {
+      if (this.phages.length === 0) {
+        this.phageWaveTimer += dt;
+        if (this.phageWaveTimer >= SimConfig.HOST_AGENT_AUTO_WAVE_INTERVAL) {
+          this.phageWaveTimer = 0;
+          this.spawnPhages(SimConfig.MANUAL_PHAGE_WAVE_COUNT, true, 0.5);
+        }
+      } else {
+        this.phageWaveTimer = 0;
+      }
+    }
+    if (this.autoNeutrophilsEnabled) {
+      if (this.neutrophils.length === 0) {
+        this.neutrophilWaveTimer += dt;
+        if (this.neutrophilWaveTimer >= SimConfig.HOST_AGENT_AUTO_WAVE_INTERVAL) {
+          this.neutrophilWaveTimer = 0;
+          this.spawnNeutrophils(SimConfig.INITIAL_NEUTROPHIL_COUNT, true);
+        }
+      } else {
+        this.neutrophilWaveTimer = 0;
       }
     }
 
@@ -714,6 +927,8 @@ export class SimulationEngine {
       totalBacteria: this.bacteria.length,
       totalSpores,
       totalNutrients: this.nutrients.length,
+      totalPhages: this.phages.length,
+      totalNeutrophils: this.neutrophils.length,
       maxGeneration,
       fps: Math.round(this.fps),
       isPaused: this.isPaused,
@@ -733,6 +948,14 @@ export class SimulationEngine {
     // Fondo exterior oscuro
     this.ctx.fillStyle = '#070b14';
     this.ctx.fillRect(0, 0, viewW, viewH);
+
+    // Seguimiento automático de la bacteria seleccionada
+    if (this.isFollowingSelected && this.selectedBacteriaId !== null) {
+      const selected = this.getSelectedBacteria();
+      if (selected) {
+        this.centerCameraOn(selected.x, selected.y);
+      }
+    }
 
     // Transformación de cámara (Pan & Zoom)
     this.ctx.translate(this.camera.x, this.camera.y);
@@ -808,6 +1031,16 @@ export class SimulationEngine {
         lowDetail,
         b.id === this.selectedBacteriaId
       );
+    }
+
+    // 3. Renderizar Glóbulos Blancos Neutrófilos (Leucocitos PMN)
+    for (let i = 0; i < this.neutrophils.length; i++) {
+      ProceduralRenderer.renderNeutrophil(this.ctx, this.neutrophils[i], lowDetail);
+    }
+
+    // 4. Renderizar Bacteriófagos T4
+    for (let i = 0; i < this.phages.length; i++) {
+      ProceduralRenderer.renderBacteriophage(this.ctx, this.phages[i], lowDetail);
     }
 
     this.ctx.restore();

@@ -1,5 +1,6 @@
 import { Bacteria } from '../models/Bacteria';
 import { AdaptationType, CellMorphology, MetabolismType, WallType } from '../models/DNA';
+import { Bacteriophage, Neutrophil } from '../models/HostAgents';
 import { Nutrient } from '../models/Nutrient';
 import { SimConfig } from '../config/SimulationConfig';
 
@@ -216,6 +217,18 @@ export class ProceduralRenderer {
       ctx.stroke();
     }
 
+    // Halo de infección vírica activa (ciclo lítico de bacteriófago en curso)
+    if (b.isInfectedByPhage && !b.isDying) {
+      const pulse = 0.88 + Math.sin(b.animPhase * 3.8) * 0.14;
+      ctx.beginPath();
+      ctx.arc(0, 0, b.radius * 1.52 * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(192, 132, 252, ${0.45 + b.phageInfectionProgress * 0.45})`;
+      ctx.lineWidth = lowDetail ? 1.3 : 1.7;
+      ctx.setLineDash([2.5, 2.5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // Aura de emisión química (Bacteriocinas / Quorum Sensing / Sideróforos)
     if (b.isEmittingToxin && !lowDetail && !b.isDying) {
       const pulse = 0.82 + Math.sin(b.animPhase * 1.6) * 0.18;
@@ -238,7 +251,7 @@ export class ProceduralRenderer {
     const r = b.radius;
     const hue = b.dna.hue;
     const traits = b.dna.traits;
-    const adapt: AdaptationType = traits.adaptation || 'none';
+    const adapts = b.dna.getAdaptations();
 
     // Si está en estado de Endospora latente, se ve como un quiste multicapa refractante (exosporio + cubierta + córtex + núcleo)
     if (b.isSpore) {
@@ -266,8 +279,8 @@ export class ProceduralRenderer {
       }
     }
 
-    // Halo de Bioluminiscencia si posee ese atributo único
-    if (adapt === 'bioluminescence' && !lowDetail) {
+    // Halo de Bioluminiscencia si posee ese atributo
+    if (b.dna.hasAdaptation('bioluminescence') && !lowDetail) {
       ctx.beginPath();
       ctx.arc(0, 0, r * 1.95, 0, Math.PI * 2);
       ctx.fillStyle = `hsla(${(hue + 40) % 360}, 95%, 68%, 0.18)`;
@@ -381,17 +394,19 @@ export class ProceduralRenderer {
       );
     }
 
-    // 5. Atributos Únicos (Pinzas, Gran Boca, Pinchos, Bioluminiscencia, Ventosa)
-    if (!lowDetail && adapt !== 'none') {
-      this.drawUniqueAdaptation(
-        ctx,
-        adapt,
-        traits.metabolism,
-        r,
-        hue,
-        b.animPhase,
-        b.isAttackingTimer > 0
-      );
+    // 5. Atributos Especiales (Pinzas, Gran Boca, Pinchos, Bioluminiscencia, Ventosa — soportando multi-adaptación)
+    if (!lowDetail && adapts.length > 0) {
+      for (let i = 0; i < adapts.length; i++) {
+        this.drawUniqueAdaptation(
+          ctx,
+          adapts[i],
+          traits.metabolism,
+          r,
+          hue,
+          b.animPhase,
+          b.isAttackingTimer > 0
+        );
+      }
     }
 
     // 6. Anillo contráctil FtsZ durante citocinesis en alto detalle
@@ -895,6 +910,35 @@ export class ProceduralRenderer {
     ctx.arc(r * 0.18, r * 0.22, 0.75, 0, Math.PI * 2);
     ctx.arc(r * 0.52, -r * 0.04, 0.7, 0, Math.PI * 2);
     ctx.fill();
+
+    // 7. Ensamblaje intracelular de cápsides icosaédricas durante el ciclo lítico de un bacteriófago
+    if (b.isInfectedByPhage) {
+      const prog = Math.min(1, Math.max(0.15, b.phageInfectionProgress));
+      const virionCount = prog > 0.66 ? 3 : prog > 0.33 ? 2 : 1;
+      ctx.save();
+      ctx.fillStyle = `rgba(192, 132, 252, ${0.65 + prog * 0.3})`;
+      ctx.strokeStyle = 'rgba(243, 232, 255, 0.9)';
+      ctx.lineWidth = 0.7;
+      for (let i = 0; i < virionCount; i++) {
+        const ang = b.animPhase * 0.9 + (i * Math.PI * 2) / 3;
+        const dist = r * 0.32 * prog;
+        const vx = Math.cos(ang) * dist;
+        const vy = Math.sin(ang) * dist;
+        const cr = Math.max(1.2, r * 0.17);
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const ha = (k / 6) * Math.PI * 2;
+          const px = vx + Math.cos(ha) * cr;
+          const py = vy + Math.sin(ha) * cr;
+          if (k === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   private static drawCapsuleHalo(
@@ -1098,7 +1142,7 @@ export class ProceduralRenderer {
     const r = b.radius;
     const hue = b.dna.hue;
     const traits = b.dna.traits;
-    const adapt: AdaptationType = traits.adaptation || 'none';
+    const adapts = b.dna.getAdaptations();
 
     if (traits.interaction !== 'neutral') {
       const pulse = 0.9 + Math.sin(b.animPhase * 1.4) * 0.1;
@@ -1132,7 +1176,7 @@ export class ProceduralRenderer {
       }
     }
 
-    if (adapt === 'bioluminescence') {
+    if (b.dna.hasAdaptation('bioluminescence')) {
       const bioGrad = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2.2);
       bioGrad.addColorStop(0, 'rgba(167, 243, 208, 0.28)');
       bioGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
@@ -1238,8 +1282,18 @@ export class ProceduralRenderer {
       );
     }
 
-    if (adapt !== 'none') {
-      this.drawUniqueAdaptation(ctx, adapt, traits.metabolism, r * 1.08, hue, b.animPhase, false);
+    if (adapts.length > 0) {
+      for (let i = 0; i < adapts.length; i++) {
+        this.drawUniqueAdaptation(
+          ctx,
+          adapts[i],
+          traits.metabolism,
+          r * 1.08,
+          hue,
+          b.animPhase,
+          false
+        );
+      }
     }
 
     ctx.restore();
@@ -1503,6 +1557,272 @@ export class ProceduralRenderer {
       ctx.arc(ex, ey, 1.0, 0, Math.PI * 2);
     }
     ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza un Bacteriófago T4 (cápside icosaédrica, vaina helicoidal contráctil,
+   * placa basal y 6 fibras caudales articuladas).
+   */
+  public static renderBacteriophage(
+    ctx: CanvasRenderingContext2D,
+    p: Bacteriophage,
+    lowDetail: boolean = false
+  ): void {
+    const lifeLeftRatio = Math.max(0.15, Math.min(1, (p.maxLifespan - p.age) / 4.0));
+    if (lowDetail) {
+      ctx.fillStyle = `rgba(192, 132, 252, ${0.85 * lifeLeftRatio})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle - Math.PI * 0.5);
+    ctx.globalAlpha = lifeLeftRatio;
+
+    const r = p.radius;
+    const legWave = Math.sin(p.animPhase * 1.4) * 0.45;
+
+    // Halo nanoscópico sutil
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.1, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.14)';
+    ctx.fill();
+
+    // 1. Fibras caudales (6 patas articuladas tipo módulo lunar en la base)
+    ctx.strokeStyle = 'rgba(216, 180, 254, 0.88)';
+    ctx.lineWidth = 0.85;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const baseY = r * 0.95;
+    ctx.beginPath();
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const spread = 0.55 + i * 0.36;
+        const kneeX = side * r * (0.65 + i * 0.25);
+        const kneeY = baseY - r * (0.28 - i * 0.08) + legWave * (i % 2 === 0 ? 1 : -1) * 0.4;
+        const tipX = side * r * (1.15 + spread * 0.45);
+        const tipY = baseY + r * (0.68 + i * 0.14);
+        ctx.moveTo(side * r * 0.22, baseY);
+        ctx.lineTo(kneeX, kneeY);
+        ctx.lineTo(tipX, tipY);
+      }
+    }
+    ctx.stroke();
+
+    // 2. Vaina caudal contráctil y collar
+    ctx.fillStyle = 'rgba(147, 51, 234, 0.9)';
+    ctx.strokeStyle = 'rgba(233, 213, 255, 0.92)';
+    ctx.lineWidth = 0.75;
+    ctx.beginPath();
+    ctx.rect(-r * 0.28, -r * 0.15, r * 0.56, r * 1.1);
+    ctx.fill();
+    ctx.stroke();
+
+    // Placa basal hexagonal con espículas de fijación
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.48, baseY);
+    ctx.lineTo(r * 0.48, baseY);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
+    // 3. Cápside icosaédrica prolatada (cabeza facetada con ADN vírico luminiscente)
+    const headY = -r * 0.95;
+    const hx = r * 0.92;
+    const hy = r * 1.05;
+    ctx.beginPath();
+    ctx.moveTo(0, headY - hy);
+    ctx.lineTo(hx, headY - hy * 0.42);
+    ctx.lineTo(hx, headY + hy * 0.42);
+    ctx.lineTo(0, headY + hy * 0.85);
+    ctx.lineTo(-hx, headY + hy * 0.42);
+    ctx.lineTo(-hx, headY - hy * 0.42);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(126, 34, 206, 0.92)';
+    ctx.fill();
+    ctx.lineWidth = 0.95;
+    ctx.strokeStyle = 'rgba(233, 213, 255, 0.95)';
+    ctx.stroke();
+
+    // Aristas cristalinas internas del icosaedro y genoma empaquetado
+    ctx.beginPath();
+    ctx.moveTo(-hx, headY - hy * 0.42);
+    ctx.lineTo(0, headY);
+    ctx.lineTo(hx, headY - hy * 0.42);
+    ctx.moveTo(0, headY);
+    ctx.lineTo(0, headY + hy * 0.85);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+    ctx.lineWidth = 0.65;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(-hx * 0.26, headY - hy * 0.22, r * 0.24, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza un Glóbulo Blanco Neutrófilo Polimorfonuclear (Leucocito PMN):
+   * Membrana ameboide con pseudópodos dinámicos, ectoplasma hialino, gránulos azurófilos,
+   * vacuolas digestivas (fagosomas) con restos bacterianos y su característico núcleo trilobulado.
+   */
+  public static renderNeutrophil(
+    ctx: CanvasRenderingContext2D,
+    n: Neutrophil,
+    lowDetail: boolean = false
+  ): void {
+    const r = n.radius;
+    if (lowDetail) {
+      ctx.save();
+      if (n.isDying) {
+        ctx.globalAlpha = Math.max(0.1, 1 - n.dyingProgress * 0.9);
+      }
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.55)';
+      ctx.strokeStyle = 'rgba(147, 197, 253, 0.85)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Núcleo multilobulado simplificado
+      ctx.fillStyle = 'rgba(109, 40, 217, 0.82)';
+      ctx.beginPath();
+      ctx.arc(n.x - r * 0.24, n.y - r * 0.16, r * 0.24, 0, Math.PI * 2);
+      ctx.arc(n.x + r * 0.22, n.y - r * 0.12, r * 0.22, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y + r * 0.24, r * 0.23, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(n.x, n.y);
+
+    if (n.isDying) {
+      ctx.globalAlpha = Math.max(0.08, 1 - n.dyingProgress * 0.92);
+    }
+
+    // Halo de quimiotaxis / estallido oxidativo (ROS) cuando fagocita
+    if (n.attackingTimer > 0 && !n.isDying) {
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.38, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.65)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    ctx.rotate(n.angle);
+
+    // 1. Trazado de membrana ameboide deformable con pseudópodos frontales
+    const points = 24;
+    ctx.beginPath();
+    for (let i = 0; i <= points; i++) {
+      const theta = (i / points) * Math.PI * 2;
+      // El polo frontal (theta ~ 0) extiende lamelipodios/pseudópodos activos
+      const frontBias = Math.max(0, Math.cos(theta)) * 0.22;
+      const wave1 = Math.sin(theta * 3 + n.animPhase * 1.3) * 0.09;
+      const wave2 = Math.cos(theta * 5 - n.animPhase * 0.95) * 0.05;
+      const attackStretch = n.attackingTimer > 0 ? Math.cos(theta * 2) * 0.08 : 0;
+      const rad = r * (1.0 + frontBias + wave1 + wave2 + attackStretch);
+      const px = Math.cos(theta) * rad;
+      const py = Math.sin(theta) * rad * 0.92;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+
+    // Citoplasma hialino leucocitario con gradiente radial perlado
+    const cytoGrad = ctx.createRadialGradient(-r * 0.15, -r * 0.15, r * 0.1, 0, 0, r * 1.25);
+    cytoGrad.addColorStop(0, 'rgba(241, 245, 249, 0.68)');
+    cytoGrad.addColorStop(0.65, 'rgba(186, 230, 253, 0.46)');
+    cytoGrad.addColorStop(1, 'rgba(56, 189, 248, 0.32)');
+    ctx.fillStyle = cytoGrad;
+    ctx.fill();
+
+    // Borde cortical de actina (ectoplasma brillante)
+    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = 'rgba(224, 242, 254, 0.88)';
+    ctx.stroke();
+
+    // 2. Fagosomas internos (vacuolas digestivas con bacterias engullidas)
+    for (let i = 0; i < n.phagosomes.length; i++) {
+      const slot = n.phagosomes[i];
+      if (!slot.active) continue;
+      const vacR = Math.max(2.0, r * 0.19 * (1 - slot.progress * 0.45));
+      ctx.beginPath();
+      ctx.arc(slot.offsetX, slot.offsetY, vacR * 1.35, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.25)';
+      ctx.fill();
+      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.65)';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(slot.offsetX, slot.offsetY, vacR, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${slot.hue}, 75%, 52%, ${Math.max(0.25, 0.85 - slot.progress * 0.6)})`;
+      ctx.fill();
+    }
+
+    // 3. Gránulos azurófilos (lisosomas cargados de mieloperoxidasa y defensinas)
+    ctx.fillStyle = 'rgba(244, 114, 182, 0.55)';
+    for (let i = 0; i < 7; i++) {
+      const ga = (i / 7) * Math.PI * 2 + 0.3;
+      const gd = r * (0.52 + (i % 2) * 0.14);
+      ctx.beginPath();
+      ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, 1.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 4. Núcleo Polimorfonuclear (PMN) característico de 3 lóbulos conectados por puentes de cromatina
+    const lobe1X = -r * 0.26;
+    const lobe1Y = -r * 0.22;
+    const lobe2X = r * 0.16;
+    const lobe2Y = -r * 0.24;
+    const lobe3X = -r * 0.06;
+    const lobe3Y = r * 0.25;
+
+    // Puentes finos de heterocromatina entre los lóbulos nucleares
+    ctx.beginPath();
+    ctx.moveTo(lobe1X, lobe1Y);
+    ctx.quadraticCurveTo(-r * 0.04, -r * 0.08, lobe2X, lobe2Y);
+    ctx.quadraticCurveTo(r * 0.08, r * 0.04, lobe3X, lobe3Y);
+    ctx.quadraticCurveTo(-r * 0.18, r * 0.02, lobe1X, lobe1Y);
+    ctx.strokeStyle = 'rgba(88, 28, 135, 0.85)';
+    ctx.lineWidth = 2.1;
+    ctx.stroke();
+
+    // Los 3 lóbulos nucleares teñidos de violeta intenso (tinción Wright-Giemsa)
+    const lobes: readonly (readonly [number, number, number])[] = [
+      [lobe1X, lobe1Y, r * 0.23],
+      [lobe2X, lobe2Y, r * 0.21],
+      [lobe3X, lobe3Y, r * 0.24],
+    ];
+    for (let i = 0; i < lobes.length; i++) {
+      const [lx, ly, lr] = lobes[i];
+      ctx.beginPath();
+      ctx.arc(lx, ly, lr, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(109, 40, 217, 0.86)';
+      ctx.fill();
+      ctx.lineWidth = 1.0;
+      ctx.strokeStyle = 'rgba(216, 180, 254, 0.78)';
+      ctx.stroke();
+
+      // heterocromatina periférica / brillo nuclear
+      ctx.beginPath();
+      ctx.arc(lx - lr * 0.25, ly - lr * 0.25, lr * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(192, 132, 252, 0.45)';
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 }

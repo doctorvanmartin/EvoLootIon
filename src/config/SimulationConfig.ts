@@ -61,9 +61,48 @@ export const SimConfig = {
   SPORE_WAKE_MULTIPLIER: 2.2,       // Factor sobre umbral para germinar
   SPORE_METABOLISM_FACTOR: 0.05,    // Consumo basal reducido al 5%
 
-  // Evolución
-  MACRO_MUTATION_CHANCE: 0.005,     // 0.5% de probabilidad de mutar un rasgo cualitativo
-  ADAPTATION_GAIN_CHANCE: 0.01,     // 1% de probabilidad por reproducción de adquirir una adaptación
+  // Evolución y Transgresión Evolutiva (límites desbloqueados más allá del editor)
+  MACRO_MUTATION_CHANCE: 0.012,     // 1.2% de probabilidad por división de mutar un rasgo cualitativo
+  ADAPTATION_GAIN_CHANCE: 0.02,     // 2.0% de probabilidad por reproducción de ganar/mutar adaptaciones
+  ADAPTATION_SWAP_OR_LOSS_CHANCE: 0.3, // Al mutar una cepa que ya tiene adaptaciones, 30% de sustituir o perder una
+  MAX_SIMULTANEOUS_ADAPTATIONS: 3,  // Hasta 3 súper-adaptaciones acumulables simultáneamente en un mismo linaje
+  MUTATION_MIN_SIZE: 3.5,           // Nanobacteria evolutiva (editor min: 5.5)
+  MUTATION_MAX_SIZE: 20.0,          // Megabacteria / Leviatán evolutivo (editor max: 13.5)
+  MUTATION_MIN_SPEED: 0.2,          // Deriva lenta evolutiva (editor min: 0.6)
+  MUTATION_MAX_SPEED: 6.5,          // Hiper-velocidad evolutiva (editor max: 4.0)
+  MUTATION_MIN_SPLIT_ENERGY: 55,
+  MUTATION_MAX_SPLIT_ENERGY: 340,
+  MUTATION_MIN_TOXIN: 0.1,
+  MUTATION_MAX_TOXIN: 7.5,          // Veneno hiper-concentrado (editor max: 4.5)
+  MUTATION_MIN_ARMOR: 0,
+  MUTATION_MAX_ARMOR: 18.0,         // Coraza extrema (editor max: 10.0)
+  MUTATION_MIN_PERCEPTION: 25,
+  MUTATION_MAX_PERCEPTION: 220,     // Quimiotaxis de largo alcance (editor max: 150)
+
+  // Agentes Biológicos Externos (Bacteriófagos T4 y Glóbulos Blancos Neutrófilos)
+  MAX_PHAGES: 42,
+  INITIAL_PHAGE_COUNT: 8,
+  MANUAL_PHAGE_WAVE_COUNT: 6,
+  PHAGE_RADIUS: 3.4,
+  PHAGE_DRIFT_SPEED: 38,
+  PHAGE_SEEK_SPEED: 64,
+  PHAGE_PERCEPTION_RADIUS: 85,
+  PHAGE_LIFESPAN: 26,               // Segundos que un virión libre permanece activo fuera de un huésped
+  PHAGE_INCUBATION_TIME: 4.8,       // Segundos de ciclo lítico intracelular antes de estallar
+  PHAGE_BURST_SIZE: 3,              // Nuevos fagos liberados al lisar una bacteria infectada
+  PHAGE_SPAWN_COOLDOWN: 0.65,       // Tiempo refractario tras la lisis antes de infectar otra célula
+  PHAGE_INFECTED_METABOLIC_DRAIN: 0.55, // ATP/s secuestrado por la maquinaria de replicación vírica
+
+  MAX_NEUTROPHILS: 6,
+  INITIAL_NEUTROPHIL_COUNT: 2,
+  MANUAL_NEUTROPHIL_COUNT: 1,
+  NEUTROPHIL_RADIUS: 18.0,
+  NEUTROPHIL_SPEED: 46,
+  NEUTROPHIL_PERCEPTION_RADIUS: 220,
+  NEUTROPHIL_PHAGOCYTOSIS_DPS: 36,  // Lisis enzimática y estallido oxidativo por contacto
+  NEUTROPHIL_MAX_PREY: 6,           // Bacterias que puede fagocitar antes de entrar en apoptosis
+  NEUTROPHIL_LIFESPAN: 55,          // Segundos de vida útil patrullando la placa
+  HOST_AGENT_AUTO_WAVE_INTERVAL: 16, // Segundos para reintroducir oleada si se activó desde el inicio
 
   // Plasticidad trófica y crecimiento ontogenético (escala min/max de radio según reserva de ATP y metabolismo)
   GROWTH_EQUILIBRIUM_RATIO: 0.62,   // Fracción de energía inicial (62% de splitEnergy) donde la escala es 1.0x

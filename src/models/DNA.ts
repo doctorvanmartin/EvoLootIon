@@ -33,17 +33,18 @@ export interface GenomeTraits {
   reproduction: ReproductionType;
   interaction: InteractionType;
   adaptation?: AdaptationType;
+  adaptations?: AdaptationType[];
 }
 
 export interface GenomeStats {
-  size: number;               // Radio base en px (5 - 15)
-  maxSpeed: number;           // Potencia locomotora base (0 - 4.5)
-  splitEnergy: number;        // Umbral de fisión (70 - 260)
+  size: number;               // Radio base en px (creación: 5.5 - 13.5 | evolución: 3.5 - 20.0)
+  maxSpeed: number;           // Potencia locomotora base (creación: 0 - 4.0 | evolución: 0 - 6.5)
+  splitEnergy: number;        // Umbral de fisión (55 - 340)
   basalMetabolism: number;    // Gasto basal derivado del tamaño, pared y adaptaciones
   dragFactor: number;         // Coste locomotor hidrodinámico
-  toxinPower: number;         // Potencia química (0 - 5.0)
-  armor: number;              // Defensa de membrana (0 - 12)
-  perceptionRadius: number;   // Quimiotaxis / Sensores (40 - 160)
+  toxinPower: number;         // Potencia química (creación: 0 - 4.5 | evolución: 0 - 7.5)
+  armor: number;              // Defensa de membrana (creación: 0 - 10.0 | evolución: 0 - 18.0)
+  perceptionRadius: number;   // Quimiotaxis / Sensores (creación: 60 - 150 | evolución: 25 - 220)
   mutationRate: number;       // Tasa de mutación (0.01 - 0.15)
 }
 
@@ -270,9 +271,7 @@ export class DNA {
     lineageName?: string,
     public readonly referenceSpecies?: ReferenceSpeciesProfile
   ) {
-    if (!this.traits.adaptation) {
-      this.traits.adaptation = 'none';
-    }
+    DNA.syncTraitAdaptations(this.traits);
     this.generation = generation;
     this.customLineageName = lineageName;
     this.recalculateDerivedCosts();
@@ -280,6 +279,62 @@ export class DNA {
       lineageName ||
       referenceSpecies?.scientificName ||
       DNA.generateProceduralName(this.traits, this.stats);
+  }
+
+  /**
+   * Normaliza una lista de adaptaciones eliminando `'none'`, duplicados y respetando el orden
+   * canónico de codones y el límite máximo simultáneo.
+   */
+  public static normalizeAdaptations(
+    raw?: readonly AdaptationType[] | AdaptationType
+  ): AdaptationType[] {
+    if (!raw) return [];
+    const list = Array.isArray(raw) ? raw : [raw];
+    const unique: AdaptationType[] = [];
+    for (let i = 0; i < ADAPTATION_OPTIONS.length; i++) {
+      const candidate = ADAPTATION_OPTIONS[i];
+      if (list.includes(candidate)) {
+        unique.push(candidate);
+        if (unique.length >= SimConfig.MAX_SIMULTANEOUS_ADAPTATIONS) break;
+      }
+    }
+    return unique;
+  }
+
+  /**
+   * Sincroniza `traits.adaptations` y `traits.adaptation` (primaria) para mantener compatibilidad.
+   */
+  public static syncTraitAdaptations(traits: GenomeTraits): AdaptationType[] {
+    const source =
+      traits.adaptations && traits.adaptations.length > 0
+        ? traits.adaptations
+        : traits.adaptation && traits.adaptation !== 'none'
+          ? [traits.adaptation]
+          : [];
+    const normalized = DNA.normalizeAdaptations(source);
+    traits.adaptations = normalized;
+    traits.adaptation = normalized[0] ?? 'none';
+    return normalized;
+  }
+
+  public static traitsHasAdaptation(traits: GenomeTraits, adapt: AdaptationType): boolean {
+    if (adapt === 'none') {
+      const list = traits.adaptations;
+      if (list) return list.length === 0;
+      return !traits.adaptation || traits.adaptation === 'none';
+    }
+    if (traits.adaptations) {
+      return traits.adaptations.includes(adapt);
+    }
+    return traits.adaptation === adapt;
+  }
+
+  public hasAdaptation(adapt: AdaptationType): boolean {
+    return DNA.traitsHasAdaptation(this.traits, adapt);
+  }
+
+  public getAdaptations(): readonly AdaptationType[] {
+    return this.traits.adaptations ?? [];
   }
 
   /**
@@ -295,7 +350,7 @@ export class DNA {
           ? SimConfig.SPIROCHETE_SPEED_MULTIPLIER
           : SimConfig.CILIA_SPEED_MULTIPLIER;
 
-    const clawPenalty = traits.adaptation === 'claws' ? 0.8 : 1.0;
+    const clawPenalty = DNA.traitsHasAdaptation(traits, 'claws') ? 0.8 : 1.0;
     return rawSpeed * motilityMult * clawPenalty;
   }
 
@@ -352,7 +407,11 @@ export class DNA {
     const cInter = INTERACTION_CODONS[traits.interaction];
     const tCode = `T${Math.round(stats.toxinPower * 10)}`;
 
-    const cAdapt = ADAPTATION_CODONS[traits.adaptation || 'none'];
+    const adapts = DNA.syncTraitAdaptations(traits);
+    const cAdapt =
+      adapts.length > 0
+        ? adapts.map((a) => ADAPTATION_CODONS[a]).join('+')
+        : ADAPTATION_CODONS.none;
     const hCode = `H${Math.round((hue + 360) % 360)}`;
 
     return {
@@ -381,7 +440,8 @@ export class DNA {
 
   /**
    * Analiza y valida una cadena codificante (5' -> 3') de 14 codones (ej.
-   * ATG-SAP-S9-FLA-V30-GRP-A40-BIN-P11-BAC-T20-NON-H155-TAG) y reconstruye la instancia DNA.
+   * ATG-SAP-S9-FLA-V30-GRP-A40-BIN-P11-BAC-T20-NON-H155-TAG o con multi-adaptación PIN+BOC)
+   * y reconstruye la instancia DNA.
    */
   public static parseCodingStrand(
     rawStrand: string,
@@ -438,12 +498,16 @@ export class DNA {
     }
 
     const rawSize = parsePrefixedNumber(tokens[2], 'S');
-    if (rawSize === null || rawSize < 5 || rawSize > 15) {
+    if (
+      rawSize === null ||
+      rawSize < SimConfig.MUTATION_MIN_SIZE ||
+      rawSize > SimConfig.MUTATION_MAX_SIZE
+    ) {
       return {
         ok: false,
         errorKey: 'size_codon',
         token: tokens[2],
-        expected: 'S5..S15',
+        expected: `S${Math.ceil(SimConfig.MUTATION_MIN_SIZE)}..S${SimConfig.MUTATION_MAX_SIZE}`,
       };
     }
 
@@ -458,12 +522,12 @@ export class DNA {
     }
 
     const rawSpeedCodon = parsePrefixedNumber(tokens[4], 'V');
-    if (rawSpeedCodon === null || rawSpeedCodon < 0 || rawSpeedCodon > 65) {
+    if (rawSpeedCodon === null || rawSpeedCodon < 0 || rawSpeedCodon > 90) {
       return {
         ok: false,
         errorKey: 'speed_codon',
         token: tokens[4],
-        expected: 'V0..V65',
+        expected: 'V0..V90',
       };
     }
 
@@ -478,12 +542,12 @@ export class DNA {
     }
 
     const rawArmorCodon = parsePrefixedNumber(tokens[6], 'A');
-    if (rawArmorCodon === null || rawArmorCodon < 0 || rawArmorCodon > 120) {
+    if (rawArmorCodon === null || rawArmorCodon < 0 || rawArmorCodon > 180) {
       return {
         ok: false,
         errorKey: 'armor_codon',
         token: tokens[6],
-        expected: 'A0..A120',
+        expected: 'A0..A180',
       };
     }
 
@@ -498,12 +562,12 @@ export class DNA {
     }
 
     const rawPerceptionCodon = parsePrefixedNumber(tokens[8], 'P');
-    if (rawPerceptionCodon === null || rawPerceptionCodon < 4 || rawPerceptionCodon > 16) {
+    if (rawPerceptionCodon === null || rawPerceptionCodon < 2 || rawPerceptionCodon > 22) {
       return {
         ok: false,
         errorKey: 'perception_codon',
         token: tokens[8],
-        expected: 'P4..P16',
+        expected: 'P2..P22',
       };
     }
 
@@ -518,24 +582,41 @@ export class DNA {
     }
 
     const rawToxinCodon = parsePrefixedNumber(tokens[10], 'T');
-    if (rawToxinCodon === null || rawToxinCodon < 0 || rawToxinCodon > 50) {
+    if (rawToxinCodon === null || rawToxinCodon < 0 || rawToxinCodon > 75) {
       return {
         ok: false,
         errorKey: 'toxin_codon',
         token: tokens[10],
-        expected: 'T0..T50',
+        expected: 'T0..T75',
       };
     }
 
-    const adaptation = CODON_TO_ADAPTATION[tokens[11]];
-    if (!adaptation) {
+    const rawAdaptParts = tokens[11].split('+').filter(Boolean);
+    if (rawAdaptParts.length === 0 || rawAdaptParts.length > SimConfig.MAX_SIMULTANEOUS_ADAPTATIONS) {
       return {
         ok: false,
         errorKey: 'adaptation_codon',
         token: tokens[11],
-        expected: 'NON, PIN, BOC, PNC, LUZ, VEN',
+        expected: 'NON, PIN, BOC, PNC, LUZ, VEN (ej. PIN+BOC)',
       };
     }
+    const parsedAdapts: AdaptationType[] = [];
+    for (let i = 0; i < rawAdaptParts.length; i++) {
+      const a = CODON_TO_ADAPTATION[rawAdaptParts[i]];
+      if (!a || (a === 'none' && rawAdaptParts.length > 1)) {
+        return {
+          ok: false,
+          errorKey: 'adaptation_codon',
+          token: tokens[11],
+          expected: 'NON, PIN, BOC, PNC, LUZ, VEN (ej. PIN+BOC)',
+        };
+      }
+      if (a !== 'none' && !parsedAdapts.includes(a)) {
+        parsedAdapts.push(a);
+      }
+    }
+    const adaptations = DNA.normalizeAdaptations(parsedAdapts);
+    const adaptation: AdaptationType = adaptations[0] ?? 'none';
 
     const rawHueCodon = parsePrefixedNumber(tokens[12], 'H');
     if (rawHueCodon === null || rawHueCodon < 0 || rawHueCodon > 360) {
@@ -554,9 +635,13 @@ export class DNA {
       reproduction,
       interaction,
       adaptation,
+      adaptations,
     };
 
-    const size = Math.min(15, Math.max(5, rawSize));
+    const size = Math.min(
+      SimConfig.MUTATION_MAX_SIZE,
+      Math.max(SimConfig.MUTATION_MIN_SIZE, rawSize)
+    );
     let maxSpeed = 0;
     if (motility !== 'sessile' && motility !== 'nonmotile') {
       const effSpeed = rawSpeedCodon / 10;
@@ -566,17 +651,29 @@ export class DNA {
           : motility === 'spirochete'
             ? SimConfig.SPIROCHETE_SPEED_MULTIPLIER
             : SimConfig.CILIA_SPEED_MULTIPLIER;
-      const clawPenalty = adaptation === 'claws' ? 0.8 : 1.0;
+      const clawPenalty = DNA.traitsHasAdaptation(traits, 'claws') ? 0.8 : 1.0;
       const rawBaseSpeed = effSpeed / (motilityMult * clawPenalty);
-      maxSpeed = Math.min(4.5, Math.max(0.5, Number(rawBaseSpeed.toFixed(4))));
+      maxSpeed = Math.min(
+        SimConfig.MUTATION_MAX_SPEED,
+        Math.max(SimConfig.MUTATION_MIN_SPEED, Number(rawBaseSpeed.toFixed(4)))
+      );
     }
 
-    const armor = Math.min(12, Math.max(0, Number((rawArmorCodon / 10).toFixed(2))));
-    const perceptionRadius = Math.min(160, Math.max(40, Math.round(rawPerceptionCodon * 10)));
+    const armor = Math.min(
+      SimConfig.MUTATION_MAX_ARMOR,
+      Math.max(SimConfig.MUTATION_MIN_ARMOR, Number((rawArmorCodon / 10).toFixed(2)))
+    );
+    const perceptionRadius = Math.min(
+      SimConfig.MUTATION_MAX_PERCEPTION,
+      Math.max(SimConfig.MUTATION_MIN_PERCEPTION, Math.round(rawPerceptionCodon * 10))
+    );
     const toxinPower =
       interaction === 'neutral' || interaction === 'siderophores'
         ? 0
-        : Math.min(5.0, Math.max(0, Number((rawToxinCodon / 10).toFixed(2))));
+        : Math.min(
+            SimConfig.MUTATION_MAX_TOXIN,
+            Math.max(0, Number((rawToxinCodon / 10).toFixed(2)))
+          );
     const splitEnergy = Math.round(95 + size * 5.5);
     const hue = ((Math.round(rawHueCodon) % 360) + 360) % 360;
 
@@ -643,9 +740,17 @@ export class DNA {
    * morfológicas, metabólicas, estructurales, locomotoras y cuantitativas.
    */
   public static generateProceduralName(traits: GenomeTraits, stats: GenomeStats): string {
-    // 1. Prefijo de escala celular según tamaño (size)
+    // 1. Prefijo de escala celular según tamaño (size, incluyendo extremos evolutivos)
     const sizePrefix =
-      stats.size >= 10.5 ? 'Mega' : stats.size <= 6.8 ? 'Micro' : '';
+      stats.size >= 15.0
+        ? 'Titan'
+        : stats.size >= 10.5
+          ? 'Mega'
+          : stats.size <= 4.8
+            ? 'Nano'
+            : stats.size <= 6.8
+              ? 'Micro'
+              : '';
 
     // 2. Raíz trófica según metabolismo
     const metaRootMap: Record<MetabolismType, string> = {
@@ -693,7 +798,7 @@ export class DNA {
 
     const species = `${motilityPartMap[traits.motility]}${interactionPartMap[traits.interaction]}${reproductionPartMap[traits.reproduction]}`;
 
-    // 5. Modificadores adicionales según atributos especiales y cuantitativos destacados
+    // 5. Modificadores adicionales según atributos especiales (soportando multi-adaptación) y cuantitativos destacados
     const statParts: string[] = [];
     const adaptationPartMap: Record<AdaptationType, string> = {
       none: '',
@@ -703,15 +808,20 @@ export class DNA {
       bioluminescence: 'lucens',
       suction_pore: 'haustor',
     };
-    const adaptTag = adaptationPartMap[traits.adaptation || 'none'];
-    if (adaptTag) statParts.push(adaptTag);
+    const activeAdapts = DNA.syncTraitAdaptations(traits);
+    for (let i = 0; i < activeAdapts.length; i++) {
+      const adaptTag = adaptationPartMap[activeAdapts[i]];
+      if (adaptTag) statParts.push(adaptTag);
+    }
 
     const effSpeed = DNA.computeEffectiveSpeed(traits, stats.maxSpeed);
     if (traits.motility !== 'sessile' && traits.motility !== 'nonmotile') {
-      if (effSpeed >= 2.8) statParts.push('velox');
+      if (effSpeed >= 5.2) statParts.push('hypervelox');
+      else if (effSpeed >= 2.8) statParts.push('velox');
       else if (effSpeed <= 1.1) statParts.push('lenta');
     }
-    if (stats.armor >= 6.0) statParts.push('ferrea');
+    if (stats.armor >= 12.0) statParts.push('adamantina');
+    else if (stats.armor >= 6.0) statParts.push('ferrea');
     else if (stats.armor <= 1.5) statParts.push('tenuis');
 
     if (traits.interaction !== 'neutral' && stats.toxinPower >= 2.6) {
@@ -804,25 +914,22 @@ export class DNA {
       this.stats.toxinPower = 0;
     }
 
-    // Costes y penalizaciones de los atributos únicos (adaptaciones especiales)
-    const adapt = this.traits.adaptation || 'none';
-    const adaptationBasalCost =
-      adapt === 'claws'
-        ? 0.28
-        : adapt === 'giant_maw'
-          ? 0.22
-          : adapt === 'spikes'
-            ? 0.25
-            : adapt === 'bioluminescence'
-              ? 0.36
-              : adapt === 'suction_pore'
-                ? 0.2
-                : 0;
+    // Costes y penalizaciones aditivos de todos los atributos especiales activos (multi-adaptación)
+    const activeAdapts = DNA.syncTraitAdaptations(this.traits);
+    let adaptationBasalCost = 0;
+    for (let i = 0; i < activeAdapts.length; i++) {
+      const a = activeAdapts[i];
+      if (a === 'claws') adaptationBasalCost += 0.28;
+      else if (a === 'giant_maw') adaptationBasalCost += 0.22;
+      else if (a === 'spikes') adaptationBasalCost += 0.25;
+      else if (a === 'bioluminescence') adaptationBasalCost += 0.36;
+      else if (a === 'suction_pore') adaptationBasalCost += 0.2;
+    }
 
     // Capa S cristalina reduce en un 25% el coste de mantenimiento por unidad de armadura
     const armorMaintenanceRate = this.traits.wall === 's_layer' ? 0.06 : 0.08;
 
-    // Metabolismo basal proporcional al área/volumen celular (Kleiber) + pared + armadura + adaptación
+    // Metabolismo basal proporcional al área/volumen celular (Kleiber) + pared + armadura + adaptaciones
     this.stats.basalMetabolism =
       0.95 * (sizeRatio ** 2) * wallMultiplier +
       this.stats.armor * armorMaintenanceRate +
@@ -840,7 +947,7 @@ export class DNA {
             ? 0.048
             : 0;
 
-    const spikesDragPenalty = adapt === 'spikes' ? 1.35 : 1.0;
+    const spikesDragPenalty = DNA.traitsHasAdaptation(this.traits, 'spikes') ? 1.35 : 1.0;
     this.stats.dragFactor =
       motilityFactor * spikesDragPenalty * sizeRatio * (this.stats.maxSpeed ** 1.75);
 
@@ -849,7 +956,11 @@ export class DNA {
 
   public cloneWithMutation(): DNA {
     const s: GenomeStats = { ...this.stats };
-    const t: GenomeTraits = { ...this.traits };
+    const currentAdapts = [...DNA.syncTraitAdaptations(this.traits)];
+    const t: GenomeTraits = {
+      ...this.traits,
+      adaptations: currentAdapts,
+    };
     const p = s.mutationRate;
 
     const mutateStat = (val: number, variance: number, min: number, max: number): number => {
@@ -869,20 +980,80 @@ export class DNA {
       else if (category === 4) t.interaction = pickRandom(INTERACTION_OPTIONS);
     }
 
-    if ((t.adaptation || 'none') === 'none' && Math.random() < SimConfig.ADAPTATION_GAIN_CHANCE) {
-      t.adaptation = pickRandom(ADAPTATION_OPTIONS);
+    // Evolución de Súper-Adaptaciones Fenotípicas: permite acumular hasta MAX_SIMULTANEOUS_ADAPTATIONS,
+    // sustituir una existente o perder una si resulta metabólicamente costosa.
+    if (Math.random() < SimConfig.ADAPTATION_GAIN_CHANCE) {
+      if (currentAdapts.length === 0) {
+        currentAdapts.push(pickRandom(ADAPTATION_OPTIONS));
+      } else if (
+        currentAdapts.length < SimConfig.MAX_SIMULTANEOUS_ADAPTATIONS &&
+        Math.random() >= SimConfig.ADAPTATION_SWAP_OR_LOSS_CHANCE
+      ) {
+        const available = ADAPTATION_OPTIONS.filter((a) => !currentAdapts.includes(a));
+        if (available.length > 0) {
+          currentAdapts.push(pickRandom(available));
+        }
+      } else {
+        // Sustitución (65%) o pérdida (35%) de una de las adaptaciones activas
+        const removeIdx = Math.floor(Math.random() * currentAdapts.length);
+        const removed = currentAdapts.splice(removeIdx, 1)[0];
+        if (Math.random() < 0.65) {
+          const candidates = ADAPTATION_OPTIONS.filter(
+            (a) => a !== removed && !currentAdapts.includes(a)
+          );
+          if (candidates.length > 0) {
+            currentAdapts.push(pickRandom(candidates));
+          }
+        }
+      }
+      t.adaptations = DNA.normalizeAdaptations(currentAdapts);
+      t.adaptation = t.adaptations[0] ?? 'none';
     }
 
-    // Micro-evolución de estadísticas continuas
-    s.size = mutateStat(s.size, 0.8, 5, 15);
+    // Micro-evolución de estadísticas continuas con Transgresión Evolutiva (extremos desbloqueados)
+    s.size = mutateStat(
+      s.size,
+      1.05,
+      SimConfig.MUTATION_MIN_SIZE,
+      SimConfig.MUTATION_MAX_SIZE
+    );
     s.maxSpeed =
       t.motility === 'sessile' || t.motility === 'nonmotile'
         ? 0
-        : mutateStat(Math.max(0.6, s.maxSpeed), 0.35, 0.4, 4.5);
-    s.splitEnergy = mutateStat(s.splitEnergy, 12, 70, 260);
-    s.toxinPower = t.interaction === 'neutral' ? 0 : mutateStat(Math.max(0.8, s.toxinPower), 0.4, 0.2, 5.0);
-    s.armor = mutateStat(s.armor, 0.7, 0, 12);
-    s.perceptionRadius = mutateStat(s.perceptionRadius, 8, 40, 160);
+        : mutateStat(
+            Math.max(0.6, s.maxSpeed),
+            0.45,
+            SimConfig.MUTATION_MIN_SPEED,
+            SimConfig.MUTATION_MAX_SPEED
+          );
+    s.splitEnergy = mutateStat(
+      s.splitEnergy,
+      15,
+      SimConfig.MUTATION_MIN_SPLIT_ENERGY,
+      SimConfig.MUTATION_MAX_SPLIT_ENERGY
+    );
+    s.toxinPower =
+      t.interaction === 'neutral'
+        ? 0
+        : mutateStat(
+            Math.max(0.8, s.toxinPower),
+            0.5,
+            SimConfig.MUTATION_MIN_TOXIN,
+            SimConfig.MUTATION_MAX_TOXIN
+          );
+    s.armor = mutateStat(
+      s.armor,
+      0.9,
+      SimConfig.MUTATION_MIN_ARMOR,
+      SimConfig.MUTATION_MAX_ARMOR
+    );
+    s.perceptionRadius = mutateStat(
+      s.perceptionRadius,
+      11,
+      SimConfig.MUTATION_MIN_PERCEPTION,
+      SimConfig.MUTATION_MAX_PERCEPTION
+    );
+    s.mutationRate = mutateStat(s.mutationRate, 0.01, 0.02, 0.12);
 
     const newHue =
       Math.random() < p ? (this.hue + (Math.random() * 10 - 5) + 360) % 360 : this.hue;

@@ -81,7 +81,7 @@ npm run preview
    * Ajusta el control deslizante **Poblaciones Rivales** (de `0` a `8`, por defecto `3`) o pulsa **Inocular Placa de Cultivo** para reiniciar con nuevas cepas rivales generadas al azar y con nombres taxonómicos procedurales.
    * Observa en la placa el **epicentro de luz** (halo iluminado con contorno discontinuo) que aparece en una ubicación aleatoria y se desplaza suavemente.
    * Prueba el botón rotatorio de velocidad (`1x` → `2x` → `4x`), el botón de pausa (`||` / `▶`), los selectores compactos `− / +` de **Comida / Sustrato** y **Luz**, y el botón de **Centrar Vista** (icono de mirilla).
-   * Haz clic o toca sobre cualquier bacteria en movimiento para abrir el **Inspector de Organismo** en la esquina inferior derecha y observar su nombre procedural, energía, generación y estado (*Vegetativa*, *Toxina Activa* o *Endospora*).
+   * Haz clic o toca sobre cualquier bacteria en movimiento para centrar automáticamente la cámara en ella, seguir su trayectoria en tiempo real y abrir el **Inspector de Organismo** compacto (con su cadena de ADN en una sola línea, nombre procedural, barra de energía, generación y estado: *Vegetativa*, *Toxina Activa* o *Endospora*).
 
 ### 4.2. Validación de rendimiento (Zero-GC y 60 FPS)
 

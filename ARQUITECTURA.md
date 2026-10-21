@@ -28,7 +28,9 @@ EvoLootIon/
     │   └── SimulationEngine.ts       # Bucle principal (sub-stepping, física, compactación y cámara)
     ├── models/
     │   ├── DNA.ts                    # Genotipo: 5 categorías, stats, trade-offs y operador de mutación
-    │   ├── Bacteria.ts               # Fenotipo: estado vital, quimiotaxis, combate y reproducción
+    │   ├── Bacteria.ts               # Fenotipo: estado vital, quimiotaxis, combate, infección lítica y reproducción
+    │   ├── HostAgents.ts             # Agentes biológicos externos: Bacteriófago T4 y Neutrófilo PMN (Zero-GC)
+    │   ├── KnownSpeciesCatalog.ts    # Perfiles de referencia de especies bacterianas conocidas
     │   └── Nutrient.ts               # Sustrato mineral y detritus orgánico (cadáveres)
     ├── i18n/
     │   └── i18n.ts                   # Internacionalización (ES/EN extensible) y adaptación por edades (5-7 a 15+)

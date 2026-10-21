@@ -113,6 +113,11 @@ export interface LocaleBundle {
     rivalSingular: string;
     rivalPlural: string;
     famousSpeciesTitle: string;
+    hostAgents: {
+      title: string;
+      phageLabel: string;
+      neutrophilLabel: string;
+    };
     customRivalDna: {
       title: string;
       hint: string;
@@ -178,6 +183,12 @@ export interface LocaleBundle {
       btnRemoveSubstrate: string;
       btnDecreaseLightRadius: string;
       btnIncreaseLightRadius: string;
+      phagesLabel: string;
+      btnSpawnPhages: string;
+      btnRemovePhages: string;
+      neutrophilsLabel: string;
+      btnSpawnNeutrophils: string;
+      btnRemoveNeutrophils: string;
       btnResetCam: string;
       btnDetailAuto: string;
       btnDetailLow: string;
@@ -186,6 +197,8 @@ export interface LocaleBundle {
       kpiBacteria: string;
       kpiSpores: string;
       kpiNutrients: string;
+      kpiPhages: string;
+      kpiNeutrophils: string;
       kpiMaxGen: string;
       kpiFps: string;
     };
@@ -194,6 +207,7 @@ export interface LocaleBundle {
       stateVegetative: string;
       stateSpore: string;
       stateToxinActive: string;
+      stateInfectedPhage: string;
       stateDying: string;
       stateDividing: string;
       gen: string;
@@ -259,6 +273,11 @@ const ES_BUNDLE: LocaleBundle = {
     rivalSingular: 'cepa',
     rivalPlural: 'cepas',
     famousSpeciesTitle: 'Bacterias famosas que añadir',
+    hostAgents: {
+      title: 'Virus y defensas inmunes que añadir',
+      phageLabel: 'Bacteriófago T4 (Virus lítico)',
+      neutrophilLabel: 'Neutrófilo PMN (Glóbulo blanco)',
+    },
     customRivalDna: {
       title: 'Añadir cepas rivales por cadena de ADN',
       hint: "Pega una cadena codificante 5' → 3' (14 codones ATG-...-TAG) para verificar su genoma e incluirla en el cultivo.",
@@ -341,6 +360,12 @@ const ES_BUNDLE: LocaleBundle = {
       btnRemoveSubstrate: 'Retirar sustrato',
       btnDecreaseLightRadius: 'Reducir radio de luz',
       btnIncreaseLightRadius: 'Aumentar radio de luz',
+      phagesLabel: 'Fagos',
+      btnSpawnPhages: 'Inocular oleada de bacteriófagos T4',
+      btnRemovePhages: 'Retirar bacteriófagos de la placa',
+      neutrophilsLabel: 'Neutrófilos',
+      btnSpawnNeutrophils: 'Desplegar glóbulo blanco neutrófilo',
+      btnRemoveNeutrophils: 'Retirar neutrófilos de la placa',
       btnResetCam: 'Centrar Vista',
       btnDetailAuto: 'Detalle: Auto',
       btnDetailLow: 'Detalle: Bajo',
@@ -349,6 +374,8 @@ const ES_BUNDLE: LocaleBundle = {
       kpiBacteria: 'Bacterias:',
       kpiSpores: 'Esporas:',
       kpiNutrients: 'Nutrientes:',
+      kpiPhages: 'Fagos:',
+      kpiNeutrophils: 'Neutrófilos:',
       kpiMaxGen: 'Gen Máx:',
       kpiFps: 'FPS:',
     },
@@ -357,6 +384,7 @@ const ES_BUNDLE: LocaleBundle = {
       stateVegetative: 'Vegetativa',
       stateSpore: 'Endospora',
       stateToxinActive: 'Química Activa',
+      stateInfectedPhage: 'Infectada (Fago T4)',
       stateDying: 'Muriendo (Lisis)',
       stateDividing: 'Dividiéndose',
       gen: 'Gen',
@@ -1357,6 +1385,11 @@ const EN_BUNDLE: LocaleBundle = {
     rivalSingular: 'strain',
     rivalPlural: 'strains',
     famousSpeciesTitle: 'Famous bacteria to add',
+    hostAgents: {
+      title: 'Viruses & immune defenses to add',
+      phageLabel: 'Bacteriophage T4 (Lytic virus)',
+      neutrophilLabel: 'PMN Neutrophil (White blood cell)',
+    },
     customRivalDna: {
       title: 'Add rival strains by DNA coding strand',
       hint: "Paste a 5' → 3' coding strand (14 codons ATG-...-TAG) to verify its genome and include it in the dish.",
@@ -1439,6 +1472,12 @@ const EN_BUNDLE: LocaleBundle = {
       btnRemoveSubstrate: 'Remove substrate',
       btnDecreaseLightRadius: 'Decrease light radius',
       btnIncreaseLightRadius: 'Increase light radius',
+      phagesLabel: 'Phages',
+      btnSpawnPhages: 'Inoculate T4 bacteriophage wave',
+      btnRemovePhages: 'Remove bacteriophages from dish',
+      neutrophilsLabel: 'Neutrophils',
+      btnSpawnNeutrophils: 'Deploy neutrophil white blood cell',
+      btnRemoveNeutrophils: 'Remove neutrophils from dish',
       btnResetCam: 'Center View',
       btnDetailAuto: 'Detail: Auto',
       btnDetailLow: 'Detail: Low',
@@ -1447,6 +1486,8 @@ const EN_BUNDLE: LocaleBundle = {
       kpiBacteria: 'Bacteria:',
       kpiSpores: 'Spores:',
       kpiNutrients: 'Nutrients:',
+      kpiPhages: 'Phages:',
+      kpiNeutrophils: 'Neutrophils:',
       kpiMaxGen: 'Max Gen:',
       kpiFps: 'FPS:',
     },
@@ -1455,6 +1496,7 @@ const EN_BUNDLE: LocaleBundle = {
       stateVegetative: 'Vegetative',
       stateSpore: 'Endospore',
       stateToxinActive: 'Active Toxin',
+      stateInfectedPhage: 'Infected (T4 Phage)',
       stateDying: 'Dying (Lysis)',
       stateDividing: 'Dividing',
       gen: 'Gen',
