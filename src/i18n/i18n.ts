@@ -96,7 +96,11 @@ export interface LocaleBundle {
     specimenPlural: string;
     rivalSingular: string;
     rivalPlural: string;
+    rivalsSummary: string;
+    famousSpeciesTitle: string;
+    famousSpeciesHelp: string;
     sessileZero: string;
+    nonmotileZero: string;
     neutralZero: string;
     siderophoresActive: string;
     speedRealUnit: string;
@@ -211,7 +215,11 @@ const ES_BUNDLE: LocaleBundle = {
     specimenPlural: 'ejemplares',
     rivalSingular: 'cepa',
     rivalPlural: 'cepas',
+    rivalsSummary: '{random} aleatorias + {famous} famosas = {total} rivales',
+    famousSpeciesTitle: 'Bacterias famosas que añadir',
+    famousSpeciesHelp: 'Cada especie marcada se añade además del número de rivales aleatorios.',
     sessileZero: '0 (Inmóvil / Sésil)',
+    nonmotileZero: '0 (No móvil)',
     neutralZero: '0 (Pacífica / Neutral)',
     siderophoresActive: 'Imán Activo (Sideróforos)',
     speedRealUnit: 'real',
@@ -328,7 +336,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Nombre:',
         strainNamePlaceholder: 'Nombre de tu bichito',
         initialPop: 'Bichitos por Familia (Ejemplares)',
-        rivals: 'Otras Familias en el Plato (Rivales)',
+        rivals: 'Rivales aleatorias',
         size: '📏 Tamaño del Cuerpo (Tamaño Celular · Más grande = más hambre)',
         speed: '🚀 Fuerza al Nadar (Velocidad Efectiva)',
         armor: '🛡️ Dureza del Escudo (Armadura de Pared)',
@@ -368,6 +376,12 @@ const ES_BUNDLE: LocaleBundle = {
               'Come minerales invisibles del agua sin necesitar sol y aguanta un 20% mejor el veneno (Quimiolitótrofa).',
             inspectorLabel: 'ComeRocas (Quimiolitótrofa)',
           },
+          chemoheterotroph: {
+            editorTitle: '🍲 ComeOrgánico (Quimioheterótrofa · Bacilo)',
+            editorDesc:
+              'Obtiene energía de nutrientes orgánicos sin especializarse en fermentar o reciclar restos.',
+            inspectorLabel: 'ComeOrgánico (Quimioheterótrofa)',
+          },
         },
         motility: {
           sessile: {
@@ -375,6 +389,11 @@ const ES_BUNDLE: LocaleBundle = {
             editorDesc:
               'No se mueve de su sitio (gasta 0 energía) y su pegamento la protege un +15% de mordiscos (Sésil).',
             inspectorLabel: 'Quietecita (Sésil)',
+          },
+          nonmotile: {
+            editorTitle: '🪨 No móvil',
+            editorDesc: 'No nada activamente, pero tampoco queda pegada al suelo como una bacteria sésil.',
+            inspectorLabel: 'No móvil',
           },
           flagellated: {
             editorTitle: '〰️ Cola Turbo (Flagelada)',
@@ -555,7 +574,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Nombre:',
         strainNamePlaceholder: 'Nombre de tu bacteria',
         initialPop: 'Ejemplares por Colonia',
-        rivals: 'Colonias Rivales',
+        rivals: 'Colonias Rivales Aleatorias',
         size: '📏 Tamaño del Cuerpo (Tamaño Celular · Más grande = más reserva y gasto)',
         speed: '🚀 Potencia del Motor (Velocidad Efectiva Real)',
         armor: '🛡️ Dureza de la Armadura (Reduce el daño recibido)',
@@ -595,6 +614,12 @@ const ES_BUNDLE: LocaleBundle = {
               'Se alimenta de minerales inorgánicos sin necesitar luz y resiste un 20% el veneno (Quimiolitótrofa).',
             inspectorLabel: 'ComeMinerales (Quimiolitótrofa)',
           },
+          chemoheterotroph: {
+            editorTitle: '🍽️ ComeMateria Orgánica (Quimioheterótrofa)',
+            editorDesc:
+              'Obtiene energía de materia orgánica a ritmo normal, sin bonificación por fermentación o detritos.',
+            inspectorLabel: 'Quimioheterótrofa',
+          },
         },
         motility: {
           sessile: {
@@ -602,6 +627,11 @@ const ES_BUNDLE: LocaleBundle = {
             editorDesc:
               'No se mueve (gasta 0 ATP/s en nadar) y su película protectora resiste +15% los mordiscos (Sésil).',
             inspectorLabel: 'Fija (Sésil)',
+          },
+          nonmotile: {
+            editorTitle: '🪨 No móvil',
+            editorDesc: 'No nada activamente, pero no está anclada ni forma un biofilm sésil.',
+            inspectorLabel: 'No móvil',
           },
           flagellated: {
             editorTitle: '〰️ Cola Motorizada (Flagelada)',
@@ -782,7 +812,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Nombre:',
         strainNamePlaceholder: 'Nombre de tu cepa',
         initialPop: 'Ejemplares por Cepa',
-        rivals: 'Cepas Rivales',
+        rivals: 'Cepas Rivales Aleatorias',
         size: '📏 Tamaño Celular (Más grande = mayor reserva, pero más gasto basal)',
         speed: '🚀 Potencia Locomotora (Velocidad Efectiva Real)',
         armor: '🛡️ Armadura de Membrana (Mitigación de daño físico y químico)',
@@ -822,6 +852,12 @@ const ES_BUNDLE: LocaleBundle = {
               'Oxida minerales inorgánicos sin necesitar luz solar y resiste un 20% las toxinas.',
             inspectorLabel: 'Quimiolitótrofa (Arquea)',
           },
+          chemoheterotroph: {
+            editorTitle: 'Quimioheterótrofa (Bacilo)',
+            editorDesc:
+              'Usa compuestos orgánicos como fuente de energía, sin la especialización de fermentadoras o saprófitas.',
+            inspectorLabel: 'Quimioheterótrofa',
+          },
         },
         motility: {
           sessile: {
@@ -829,6 +865,11 @@ const ES_BUNDLE: LocaleBundle = {
             editorDesc:
               'Inmóvil (Coste 0 ATP/s) y su matriz de biofilm resiste un +15% los ataques de predadores.',
             inspectorLabel: 'Sésil (Inmóvil)',
+          },
+          nonmotile: {
+            editorTitle: 'No móvil',
+            editorDesc: 'Carece de locomoción activa, pero no se considera anclada ni obtiene defensa de biofilm.',
+            inspectorLabel: 'No móvil',
           },
           flagellated: {
             editorTitle: '〰️ Flagelada (Propulsión Flagelar)',
@@ -1009,7 +1050,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Cepa:',
         strainNamePlaceholder: 'Nombre de la cepa',
         initialPop: 'Inóculo Inicial por Cepa',
-        rivals: 'Poblaciones Competidoras',
+        rivals: 'Poblaciones Competidoras Aleatorias',
         size: '📏 Radio Celular (Codón S · Escalado alométrico de Kleiber)',
         speed: '🚀 Potencia Locomotora (Codón V · Velocidad efectiva)',
         armor: '🛡️ Armadura de Membrana (Codón A · Reducción de lisis)',
@@ -1044,12 +1085,22 @@ const ES_BUNDLE: LocaleBundle = {
             editorDesc: 'Oxidación inorgánica basal autónoma y +20% de resistencia a bacteriocinas.',
             inspectorLabel: 'Quimiolitótrofa',
           },
+          chemoheterotroph: {
+            editorTitle: 'Quimioheterótrofa',
+            editorDesc: 'Obtiene energía de compuestos orgánicos a rendimiento basal, sin bonificación especial.',
+            inspectorLabel: 'Quimioheterótrofa',
+          },
         },
         motility: {
           sessile: {
             editorTitle: '⚓ Sésil (Biofilm)',
             editorDesc: 'Adhesión estática sin gasto cinético (0 ATP/s) y +15% resistencia mecánica.',
             inspectorLabel: 'Sésil',
+          },
+          nonmotile: {
+            editorTitle: 'No móvil',
+            editorDesc: 'No nada activamente, pero no queda anclada ni recibe la defensa del biofilm.',
+            inspectorLabel: 'No móvil',
           },
           flagellated: {
             editorTitle: '〰️ Flagelada (Monotrica)',
@@ -1214,7 +1265,11 @@ const EN_BUNDLE: LocaleBundle = {
     specimenPlural: 'cells',
     rivalSingular: 'strain',
     rivalPlural: 'strains',
+    rivalsSummary: '{random} random + {famous} named = {total} rivals',
+    famousSpeciesTitle: 'Famous bacteria to add',
+    famousSpeciesHelp: 'Each checked species is added in addition to the selected random rivals.',
     sessileZero: '0 (Non-Motile / Sessile)',
+    nonmotileZero: '0 (Non-motile)',
     neutralZero: '0 (Peaceful / Neutral)',
     siderophoresActive: 'Active Magnet (Siderophores)',
     speedRealUnit: 'eff.',
@@ -1331,7 +1386,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Name:',
         strainNamePlaceholder: 'Name your microbe',
         initialPop: 'Microbes per Family (Cells)',
-        rivals: 'Other Families in the Dish (Rivals)',
+        rivals: 'Random rival populations',
         size: '📏 Body Size (Cell Size · Bigger = hungrier)',
         speed: '🚀 Swim Power (Effective Speed)',
         armor: '🛡️ Shield Toughness (Wall Armor)',
@@ -1371,6 +1426,12 @@ const EN_BUNDLE: LocaleBundle = {
               'Eats invisible minerals in the water without needing sunlight and resists 20% of poison (Chemolithotroph).',
             inspectorLabel: 'Rock-Eater (Chemolithotroph)',
           },
+          chemoheterotroph: {
+            editorTitle: '🍲 Organic Feeder (Chemoheterotroph)',
+            editorDesc:
+              'Gets energy from organic nutrients without specializing in fermentation or recycling remains.',
+            inspectorLabel: 'Organic Feeder (Chemoheterotroph)',
+          },
         },
         motility: {
           sessile: {
@@ -1378,6 +1439,11 @@ const EN_BUNDLE: LocaleBundle = {
             editorDesc:
               'Stays in one spot (0 energy cost) and its sticky glue blocks +15% of bites (Sessile).',
             inspectorLabel: 'Stay-Put (Sessile)',
+          },
+          nonmotile: {
+            editorTitle: '🪨 Non-motile',
+            editorDesc: 'Does not actively swim, but is not anchored like a sessile bacterium.',
+            inspectorLabel: 'Non-motile',
           },
           flagellated: {
             editorTitle: '〰️ Turbo Tail (Flagellated)',
@@ -1558,7 +1624,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Name:',
         strainNamePlaceholder: 'Your bacterium name',
         initialPop: 'Cells per Colony',
-        rivals: 'Rival Colonies',
+        rivals: 'Random rival colonies',
         size: '📏 Body Size (Cell Size · Larger = bigger reserve, higher drain)',
         speed: '🚀 Motor Power (Effective Real Speed)',
         armor: '🛡️ Armor Toughness (Reduces incoming damage)',
@@ -1598,6 +1664,12 @@ const EN_BUNDLE: LocaleBundle = {
               'Feeds on rock minerals without needing sunlight and resists 20% of poison (Chemolithotroph).',
             inspectorLabel: 'Mineral Feeder (Chemolithotroph)',
           },
+          chemoheterotroph: {
+            editorTitle: '🍽️ Organic Feeder (Chemoheterotroph)',
+            editorDesc:
+              'Gets energy from organic matter at the baseline rate, without fermentation or detritus bonuses.',
+            inspectorLabel: 'Chemoheterotroph',
+          },
         },
         motility: {
           sessile: {
@@ -1605,6 +1677,11 @@ const EN_BUNDLE: LocaleBundle = {
             editorDesc:
               'Stays still (0 ATP/s swim cost) and its biofilm resists +15% of bites (Sessile).',
             inspectorLabel: 'Anchored (Sessile)',
+          },
+          nonmotile: {
+            editorTitle: '🪨 Non-motile',
+            editorDesc: 'Does not swim actively, but is neither anchored nor protected by a biofilm.',
+            inspectorLabel: 'Non-motile',
           },
           flagellated: {
             editorTitle: '〰️ Motorized Tail (Flagellated)',
@@ -1785,7 +1862,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Name:',
         strainNamePlaceholder: 'Your strain name',
         initialPop: 'Specimens per Strain',
-        rivals: 'Rival Strains',
+        rivals: 'Random rival strains',
         size: '📏 Cell Size (Larger = bigger reserve, higher basal drain)',
         speed: '🚀 Locomotor Power (Effective Real Speed)',
         armor: '🛡️ Membrane Armor (Physical & chemical damage mitigation)',
@@ -1825,6 +1902,12 @@ const EN_BUNDLE: LocaleBundle = {
               'Oxidizes inorganic minerals without sunlight and resists 20% of toxin damage.',
             inspectorLabel: 'Chemolithotroph (Archaea)',
           },
+          chemoheterotroph: {
+            editorTitle: 'Chemoheterotroph',
+            editorDesc:
+              'Uses organic compounds as an energy source without the specialization of fermenters or saprophytes.',
+            inspectorLabel: 'Chemoheterotroph',
+          },
         },
         motility: {
           sessile: {
@@ -1832,6 +1915,11 @@ const EN_BUNDLE: LocaleBundle = {
             editorDesc:
               'Non-motile (0 ATP/s cost) and its biofilm matrix resists +15% of predator attacks.',
             inspectorLabel: 'Sessile (Non-Motile)',
+          },
+          nonmotile: {
+            editorTitle: 'Non-motile',
+            editorDesc: 'Lacks active locomotion but is not anchored and receives no biofilm defense.',
+            inspectorLabel: 'Non-motile',
           },
           flagellated: {
             editorTitle: '〰️ Flagellated (Flagellar Propulsion)',
@@ -2012,7 +2100,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNameLabel: 'Strain:',
         strainNamePlaceholder: 'Strain name',
         initialPop: 'Initial Inoculum per Strain',
-        rivals: 'Competing Populations',
+        rivals: 'Random competing populations',
         size: '📏 Cell Radius (Codon S · Kleiber allometric scaling)',
         speed: '🚀 Locomotor Power (Codon V · Effective speed)',
         armor: '🛡️ Membrane Armor (Codon A · Lysis reduction)',
@@ -2047,12 +2135,22 @@ const EN_BUNDLE: LocaleBundle = {
             editorDesc: 'Autonomous inorganic oxidation and +20% resistance to bacteriocins.',
             inspectorLabel: 'Chemolithotroph',
           },
+          chemoheterotroph: {
+            editorTitle: 'Chemoheterotroph',
+            editorDesc: 'Gets energy from organic compounds at the baseline rate, with no special bonus.',
+            inspectorLabel: 'Chemoheterotroph',
+          },
         },
         motility: {
           sessile: {
             editorTitle: '⚓ Sessile (Biofilm)',
             editorDesc: 'Static adhesion with zero kinetic drain (0 ATP/s) and +15% mechanical resistance.',
             inspectorLabel: 'Sessile',
+          },
+          nonmotile: {
+            editorTitle: 'Non-motile',
+            editorDesc: 'Does not swim actively, but is not anchored and has no biofilm defense.',
+            inspectorLabel: 'Non-motile',
           },
           flagellated: {
             editorTitle: '〰️ Flagellated (Monotrichous)',

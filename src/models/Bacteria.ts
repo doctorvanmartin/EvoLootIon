@@ -265,7 +265,7 @@ export class Bacteria {
     bacteria: Bacteria[],
     bounds: WorldEnvironment
   ): void {
-    if (this.dna.traits.motility === 'sessile') {
+    if (this.dna.traits.motility === 'sessile' || this.dna.traits.motility === 'nonmotile') {
       this.vx = 0;
       this.vy = 0;
       return;
@@ -295,7 +295,7 @@ export class Bacteria {
         }
       }
     } else if (this.dna.traits.metabolism !== 'photosynthetic') {
-      // Saprófitas, fermentadoras y quimiolitótrofas siguen el gradiente de nutrientes
+      // Las bacterias heterótrofas siguen el gradiente de nutrientes
       for (let i = 0; i < nutrients.length; i++) {
         const n = nutrients[i];
         if (n.isDead) continue;

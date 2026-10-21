@@ -682,6 +682,57 @@
       font-size: 12px;
     }
 
+    .known-species-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.45);
+    }
+
+    .known-species-heading {
+      font-size: 12px;
+      font-weight: 700;
+      color: #cbd5e1;
+    }
+
+    .known-species-help {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .known-species-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px 12px;
+    }
+
+    .known-species-option {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      color: var(--text-main);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .known-species-option input {
+      accent-color: #34d399;
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 760px) {
+      .known-species-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     input[type="text"] {
       width: 100%;
       padding: 9px 12px;
@@ -1349,10 +1400,43 @@
 
               <div class="param-box">
                 <label class="field-label" for="rngRivals">
-                  <span id="lblParamRivals">Cepas Rivales</span>
+                  <span id="lblParamRivals">Cepas Rivales Aleatorias</span>
                   <span class="val" id="valRivals">3 cepas</span>
                 </label>
                 <input type="range" id="rngRivals" min="0" max="8" step="1" value="3" />
+              </div>
+            </div>
+
+            <div class="known-species-selector">
+              <div class="known-species-heading" id="lblFamousSpeciesTitle">Bacterias famosas que añadir</div>
+              <p class="known-species-help" id="lblFamousSpeciesHelp">
+                Cada especie marcada se añade además del número de rivales aleatorios.
+              </p>
+              <div class="known-species-grid">
+                <label class="known-species-option">
+                  <input type="checkbox" data-known-species value="salmonella_enterica" />
+                  <span>Salmonella enterica (Typhimurium)</span>
+                </label>
+                <label class="known-species-option">
+                  <input type="checkbox" data-known-species value="helicobacter_pylori" />
+                  <span>Helicobacter pylori</span>
+                </label>
+                <label class="known-species-option">
+                  <input type="checkbox" data-known-species value="escherichia_coli" />
+                  <span>Escherichia coli K-12</span>
+                </label>
+                <label class="known-species-option">
+                  <input type="checkbox" data-known-species value="staphylococcus_aureus" />
+                  <span>Staphylococcus aureus</span>
+                </label>
+                <label class="known-species-option">
+                  <input type="checkbox" data-known-species value="pseudomonas_aeruginosa" />
+                  <span>Pseudomonas aeruginosa PAO1</span>
+                </label>
+                <label class="known-species-option">
+                  <input type="checkbox" data-known-species value="bacillus_subtilis" />
+                  <span>Bacillus subtilis 168</span>
+                </label>
               </div>
             </div>
 
@@ -1412,6 +1496,14 @@
                 </div>
                 <span class="trait-btn-desc">Come minerales de las rocas sin necesitar sol y resiste un 20% el veneno.</span>
               </button>
+
+              <button type="button" class="trait-btn" data-trait="metabolism" data-value="chemoheterotroph">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🧪 Quimioheterótrofa (Bacilo)</span>
+                  <span class="trait-codon-tag">HET</span>
+                </div>
+                <span class="trait-btn-desc">Obtiene energía de materia orgánica sin especializarse en fermentación o detritos.</span>
+              </button>
             </div>
 
             <!-- Atributo vinculado: Tamaño Celular (S) -->
@@ -1443,6 +1535,14 @@
                   <span class="trait-codon-tag">SES</span>
                 </div>
                 <span class="trait-btn-desc">No se mueve (Coste 0 ATP/s) y su biofilm resiste +15% mordiscos.</span>
+              </button>
+
+              <button type="button" class="trait-btn" data-trait="motility" data-value="nonmotile">
+                <div class="trait-btn-top">
+                  <span class="trait-btn-title">🪨 No móvil</span>
+                  <span class="trait-codon-tag">NOM</span>
+                </div>
+                <span class="trait-btn-desc">No nada activamente, pero tampoco queda anclada como una bacteria sésil.</span>
               </button>
 
               <button type="button" class="trait-btn active" data-trait="motility" data-value="flagellated">

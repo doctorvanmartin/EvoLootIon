@@ -12,7 +12,7 @@ Cada organismo se define por cinco ejes funcionales almacenados en `DNA.traits`:
 
 ### 1.1. Metabolismo y Alimentación (`metabolism`)
 
-Define cómo la bacteria obtiene energía ($E$) del entorno y determina la morfología del cuerpo celular (soma):
+Define cómo la bacteria obtiene energía ($E$) del entorno y, en las cepas diseñadas, orienta la morfología base del soma. Los perfiles de referencia pueden fijar su forma celular conocida:
 
 * **Fotosintética (`photosynthetic` — Morfología: Coco esférico):**
   * Genera energía pasiva en función de la irradiancia luminosa local $I(\mathbf{x})$ dentro de un **epicentro de luz acotado** (`LIGHT_SPOT_RADIUS = 260 px`) que aparece en una posición aleatoria y deriva suavemente por la placa (`LIGHT_DRIFT_SPEED = 14 px/s`). Fuera de dicho foco, la placa permanece en penumbra (`LIGHT_AMBIENT_MIN = 0.03`).
@@ -24,8 +24,10 @@ Define cómo la bacteria obtiene energía ($E$) del entorno y determina la morfo
   * Ignora las partículas minerales y persigue activamente por quimiotaxis a bacterias vivas de otros linajes (que no estén esporuladas) para fagocitarlas por contacto, absorbiendo el $82\%$ (`PREDATION_EFFICIENCY`) del daño infligido como energía propia.
 * **Fermentadora (`fermenter` — Morfología: Diplococo lobulado):**
   * Especialista en asimilación rápida: obtiene un $+45\%$ de energía (`FERMENTER_MULTIPLIER = 1.45`) de cualquier nutriente del medio.
-* **Quimiolitótrofa (`chemolithotroph` — Morfología: Arquea hexagonal):**
+* **Quimiolitótrofa (`chemolithotroph` — Morfología de juego: Arquea hexagonal):**
   * Oxida compuestos inorgánicos obteniendo energía pasiva constante (`CHEMOLITHOTROPHY_RATE = 1.95`) sin depender de la luz solar, además de resistir un $20\%$ el daño químico de toxinas.
+* **Quimioheterótrofa (`chemoheterotroph` — Morfología base: Bacilo):**
+  * Obtiene energía de materia orgánica al rendimiento basal. Representa a heterótrofos que no encajan en las especializaciones de fermentación o consumo de detritos; no añade una bonificación de energía.
 
 ### 1.2. Locomoción y Movilidad (`motility`)
 
@@ -33,6 +35,8 @@ Determina cómo se desplaza la célula, su multiplicador realista de velocidad p
 
 * **Sésil / Biofilm (`sessile`):**
   * Permanece anclada ($v = 0$) y proyecta pili/matriz de biofilm. Su gasto energético locomotor es cero y su anclaje reduce un $15\%$ el daño recibido por mordiscos.
+* **No móvil (`nonmotile`):**
+  * No tiene locomoción activa, pero no queda anclada ni obtiene la defensa o el despliegue en dos focos propios de una cepa sésil.
 * **Flagelada (`flagellated`):**
   * Nado rápido mediante hélice flagelar rotatoria (*Run & Tumble*). Otorga un **multiplicador de velocidad máxima de $\times 1.35$** (`FLAGELLA_SPEED_MULTIPLIER`), permitiendo sprints veloces a cambio de un mayor coste de ATP/s (`0.048`).
 * **Ciliada (`ciliated`):**
@@ -173,12 +177,18 @@ Desde el Editor Genómico, el jugador puede seleccionar:
 * El **número de ejemplares iniciales por cepa** se puede ajustar entre `3` y `10` individuos (`INITIAL_COLONY_SIZE = 6` por defecto). Como máximo, una cepa sésil aparece en la partida; duplica ese total y se reparte en dos focos separados: con 6 ejemplares seleccionados, empieza con 12, en dos grupos de 6. Las mutaciones de motilidad no crean nuevos linajes sésiles.
 * Los ejemplares sésiles se colocan aleatoriamente con separación mínima entre sus centros para evitar solapamientos y evitar formaciones geométricas regulares.
 * El **número de poblaciones rivales** entre `0` y `8` (siendo **3 poblaciones rivales** el valor por defecto, además de la cepa del jugador).
+* Además de las rivales generadas al azar, se pueden incluir perfiles fijos de *Salmonella enterica* serovar Typhimurium, *Helicobacter pylori*, *Escherichia coli* K-12, *Staphylococcus aureus*, *Pseudomonas aeruginosa* PAO1 y *Bacillus subtilis* 168. Cada casilla marcada añade una población y usa el mismo número de ejemplares por colonia. Todas aparecen desmarcadas inicialmente.
+
+  * *Salmonella*, *H. pylori* y *E. coli* se representan como bacilos quimioheterótrofos Gram-negativos y flagelados; *H. pylori* tiene soma curvado.
+  * *S. aureus* se representa como cocos agrupados Gram-positivos y no móviles (no sésiles). *P. aeruginosa* es un bacilo quimioheterótrofo Gram-negativo con quorum sensing. *B. subtilis* es un bacilo quimioheterótrofo Gram-positivo con capacidad de esporulación.
+  * Los rasgos categóricos y la forma de referencia están fijados al inocular. Los parámetros numéricos están escalados para el juego y pueden evolucionar en las generaciones descendientes.
 
 * Las colonias se inoculan distribuidas de forma equidistante en un anillo elíptico alrededor de la placa de Petri; los focos adicionales sésiles se colocan en posiciones aleatorias separadas.
 * El sustrato comienza con `60` partículas (`INITIAL_NUTRIENTS`) en seis focos. Después aparecen grupos de cinco partículas cada `4 s`, concentrados en áreas de radio `44 px`; los focos nuevos se separan de los recientes siempre que el espacio lo permite.
 * Los controles de la simulación permiten añadir o retirar `35` partículas de sustrato y ampliar o reducir el radio de luz en pasos de `40 px`.
-* Tanto la **mitosis (reproducción)** como la **lisis celular (muerte)** tienen transiciones graduales visibles (`3.6s` y `1.6s` respectivamente) para poder observar cómo las bacterias se estiran al dividirse o se desintegran al morir antes de convertirse en detritus orgánico.
-* Los genomas rivales se **generan al azar** en cada partida (`DNA.createRandomRival`), barajando los tipos de metabolismo para garantizar variedad ecológica y eligiendo aleatoriamente tanto sus rasgos cualitativos como sus estadísticas cuantitativas y matices cromáticos (`hue`).
+* La **división celular** y la **lisis** tienen transiciones graduales visibles (`3.6s` y `1.6s`). Después de dividirse, madre e hija requieren al menos `3.6s` de crecimiento activo antes de poder iniciar otra división.
+* Las poblaciones rivales aleatorias se generan en cada partida (`DNA.createRandomRival`), con rasgos y estadísticas variados. Los perfiles de especies conocidas usan rasgos cualitativos y morfología de referencia fijos; sus estadísticas continuas están normalizadas para el balance del juego, no son mediciones directas de velocidades o metabolismo reales. Las generaciones descendientes pueden evolucionar y conservan el nombre de su especie de referencia.
+* La simulación no modela oxígeno, pH, huésped ni todos los mecanismos de virulencia. Por ejemplo, la ureasa de *H. pylori* y el entorno ácido gástrico no tienen efecto mecánico; la interacción por quorum sensing de *P. aeruginosa* es una aproximación del juego, no una simulación literal de sus factores de virulencia.
 
 ### 4.2. Generación Procedural de Nombres (`DNA.generateProceduralName`)
 

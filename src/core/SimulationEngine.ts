@@ -1,5 +1,6 @@
 import { Bacteria, WorldEnvironment } from '../models/Bacteria';
 import { DNA, MetabolismType } from '../models/DNA';
+import { createKnownSpeciesDNA, KnownSpeciesId } from '../models/KnownSpeciesCatalog';
 import { Nutrient } from '../models/Nutrient';
 import { SpatialHashGrid } from './SpatialHashGrid';
 import { SimConfig } from '../config/SimulationConfig';
@@ -111,7 +112,8 @@ export class SimulationEngine {
   public initColonies(
     userDNA: DNA,
     rivalCount: number = SimConfig.DEFAULT_RIVAL_COLONIES,
-    initialColonySize: number = SimConfig.INITIAL_COLONY_SIZE
+    initialColonySize: number = SimConfig.INITIAL_COLONY_SIZE,
+    knownSpeciesIds: readonly KnownSpeciesId[] = []
   ): void {
     this.bacteria.length = 0;
     this.nutrients.length = 0;
@@ -136,7 +138,7 @@ export class SimulationEngine {
 
     const w = this.worldWidth;
     const h = this.worldHeight;
-    const totalColonies = 1 + clampedRivals;
+    const totalColonies = 1 + clampedRivals + knownSpeciesIds.length;
 
     // Elegir al azar el epicentro de luz inicial dentro de la placa y su vector de deriva
     const margin = Math.min(200, Math.min(w, h) * 0.22);
@@ -223,11 +225,11 @@ export class SimulationEngine {
     // 1. Cepa diseñada por el jugador
     spawnInitialColony(colonyCenters[0], 0, userDNA);
 
-    // 2. Generación aleatoria de las N poblaciones rivales con nombres procedurales según sus atributos
+    // 2. Poblaciones rivales generadas al azar
     const shuffledMetabolisms = this.buildRandomMetabolismQueue(clampedRivals);
     let hasSessileColony = userDNA.traits.motility === 'sessile';
     for (let i = 0; i < clampedRivals; i++) {
-      const hueStep = 360 / (clampedRivals + 1);
+      const hueStep = 360 / totalColonies;
       const jitter = (Math.random() - 0.5) * (hueStep * 0.35);
       const hue = Math.round((userDNA.hue + hueStep * (i + 1) + jitter + 360) % 360);
       const rivalDNA = DNA.createRandomRival(
@@ -240,6 +242,15 @@ export class SimulationEngine {
         hasSessileColony = true;
       }
       spawnInitialColony(colonyCenters[i + 1], i + 1, rivalDNA);
+    }
+
+    // 3. Perfiles de referencia seleccionados, además de las poblaciones aleatorias
+    for (let i = 0; i < knownSpeciesIds.length; i++) {
+      const colonyIndex = clampedRivals + i + 1;
+      const hueStep = 360 / totalColonies;
+      const hue = Math.round((userDNA.hue + hueStep * colonyIndex + 360) % 360);
+      const speciesDNA = createKnownSpeciesDNA(knownSpeciesIds[i], hue);
+      spawnInitialColony(colonyCenters[colonyIndex], colonyIndex, speciesDNA);
     }
 
     // Población inicial de sustrato repartida en focos separados
@@ -268,6 +279,7 @@ export class SimulationEngine {
       'predator',
       'fermenter',
       'chemolithotroph',
+      'chemoheterotroph',
     ];
     const result: MetabolismType[] = [];
     while (result.length < count) {

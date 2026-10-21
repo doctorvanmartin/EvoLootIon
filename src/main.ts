@@ -14,6 +14,7 @@ import { DetailMode, SimulationEngine, SimulationTelemetry } from './core/Simula
 import { ProceduralRenderer } from './render/ProceduralRenderer';
 import { SimConfig } from './config/SimulationConfig';
 import { AgeGroup, i18n, LocaleCode } from './i18n/i18n';
+import { isKnownSpeciesId, KnownSpeciesId } from './models/KnownSpeciesCatalog';
 
 // --- Referencias del DOM ---
 const genomeEditorModal = document.getElementById('genomeEditorModal')!;
@@ -38,6 +39,8 @@ const rngToxin = document.getElementById('rngToxin') as HTMLInputElement;
 const rngHue = document.getElementById('rngHue') as HTMLInputElement;
 const rngInitialPop = document.getElementById('rngInitialPop') as HTMLInputElement;
 const rngRivals = document.getElementById('rngRivals') as HTMLInputElement;
+const knownSpeciesCheckboxes =
+  document.querySelectorAll<HTMLInputElement>('[data-known-species]');
 
 const valSize = document.getElementById('valSize')!;
 const valSpeed = document.getElementById('valSpeed')!;
@@ -133,11 +136,12 @@ function randomizeInitialSelection(): void {
     'predator',
     'fermenter',
     'chemolithotroph',
+    'chemoheterotroph',
   ]);
   selectedTraits.motility = pickRandom(
     selectedTraits.metabolism === 'predator'
       ? ['flagellated', 'ciliated', 'spirochete']
-      : ['sessile', 'flagellated', 'ciliated', 'spirochete']
+      : ['sessile', 'nonmotile', 'flagellated', 'ciliated', 'spirochete']
   );
   selectedTraits.wall = pickRandom(['gram_negative', 'gram_positive', 'capsule', 's_layer']);
   selectedTraits.reproduction = pickRandom([
@@ -185,7 +189,10 @@ function buildUserDNA(): DNA {
   const perceptionRadius = parseFloat(rngPerception.value);
   const stats: GenomeStats = {
     size,
-    maxSpeed: traits.motility === 'sessile' ? 0 : parseFloat(rngSpeed.value),
+    maxSpeed:
+      traits.motility === 'sessile' || traits.motility === 'nonmotile'
+        ? 0
+        : parseFloat(rngSpeed.value),
     splitEnergy: Math.round(95 + size * 5.5),
     basalMetabolism: 0,
     dragFactor: 0,
@@ -252,6 +259,16 @@ function getSelectedRivalCount(): number {
   return Number.isNaN(parsed) ? 3 : parsed;
 }
 
+function getSelectedKnownSpecies(): KnownSpeciesId[] {
+  const species: KnownSpeciesId[] = [];
+  knownSpeciesCheckboxes.forEach((checkbox) => {
+    if (checkbox.checked && isKnownSpeciesId(checkbox.value)) {
+      species.push(checkbox.value);
+    }
+  });
+  return species;
+}
+
 function getSelectedInitialPop(): number {
   const parsed = parseInt(rngInitialPop.value, 10);
   return Number.isNaN(parsed) ? SimConfig.INITIAL_COLONY_SIZE : parsed;
@@ -269,6 +286,8 @@ function updateDesignerReadouts(): void {
 
   if (dna.traits.motility === 'sessile') {
     valSpeed.textContent = ui.sessileZero;
+  } else if (dna.traits.motility === 'nonmotile') {
+    valSpeed.textContent = ui.nonmotileZero;
   } else {
     const motTag =
       dna.traits.motility === 'flagellated'
@@ -302,11 +321,14 @@ function updateDesignerReadouts(): void {
   }`;
 
   const rivalCount = getSelectedRivalCount();
-  valRivals.textContent = `${rivalCount} ${
-    rivalCount === 1 ? ui.rivalSingular : ui.rivalPlural
-  }`;
+  const famousSpeciesCount = getSelectedKnownSpecies().length;
+  valRivals.textContent = ui.rivalsSummary
+    .replace('{random}', `${rivalCount}`)
+    .replace('{famous}', `${famousSpeciesCount}`)
+    .replace('{total}', `${rivalCount + famousSpeciesCount}`);
 
-  rngSpeed.disabled = dna.traits.motility === 'sessile';
+  rngSpeed.disabled =
+    dna.traits.motility === 'sessile' || dna.traits.motility === 'nonmotile';
   rngToxin.disabled =
     dna.traits.interaction === 'neutral' || dna.traits.interaction === 'siderophores';
 
@@ -581,6 +603,9 @@ traitButtons.forEach((btn) => {
 [rngSize, rngSpeed, rngArmor, rngPerception, rngToxin, rngHue, rngInitialPop, rngRivals].forEach(
   (el) => el.addEventListener('input', updateDesignerReadouts)
 );
+knownSpeciesCheckboxes.forEach((checkbox) =>
+  checkbox.addEventListener('change', updateDesignerReadouts)
+);
 strainNameInput.addEventListener('input', updateDesignerReadouts);
 
 // --- Flujo del Paso Previo (Editor <-> Placa de Cultivo) ---
@@ -667,6 +692,8 @@ function applyTranslations(): void {
   setTextById('lblCultureConditionsTitle', ui.cultureConditionsTitle);
   setTextById('lblParamInitialPop', age.params.initialPop);
   setTextById('lblParamRivals', age.params.rivals);
+  setTextById('lblFamousSpeciesTitle', ui.famousSpeciesTitle);
+  setTextById('lblFamousSpeciesHelp', ui.famousSpeciesHelp);
   setTextById('lblBtnDeploy', ui.btnDeploy);
 
   // Columna derecha del Editor: Encabezado y Categorías A..F
@@ -854,7 +881,12 @@ function deployColonies(): void {
   genomeEditorModal.classList.add('hidden');
 
   engine.resizeCanvas();
-  engine.initColonies(userDNA, getSelectedRivalCount(), getSelectedInitialPop());
+  engine.initColonies(
+    userDNA,
+    getSelectedRivalCount(),
+    getSelectedInitialPop(),
+    getSelectedKnownSpecies()
+  );
 
   // Actualizar tarjeta resumen de la cepa activa en la barra lateral
   activeStrainTitle.textContent = userDNA.lineageName;

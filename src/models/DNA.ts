@@ -5,11 +5,13 @@ export type MetabolismType =
   | 'saprophyte'
   | 'predator'
   | 'fermenter'
-  | 'chemolithotroph';
-export type MotilityType = 'sessile' | 'flagellated' | 'ciliated' | 'spirochete';
+  | 'chemolithotroph'
+  | 'chemoheterotroph';
+export type MotilityType = 'sessile' | 'nonmotile' | 'flagellated' | 'ciliated' | 'spirochete';
 export type WallType = 'gram_negative' | 'gram_positive' | 'capsule' | 's_layer';
 export type ReproductionType = 'binary_fission' | 'budding' | 'sporulation' | 'conjugation';
 export type InteractionType = 'neutral' | 'bacteriocins' | 'quorum_sensing' | 'siderophores';
+export type CellMorphology = 'coccus' | 'coccus_cluster' | 'rod' | 'curved_rod';
 export type AdaptationType =
   | 'none'
   | 'claws'
@@ -17,6 +19,12 @@ export type AdaptationType =
   | 'spikes'
   | 'bioluminescence'
   | 'suction_pore';
+
+export interface ReferenceSpeciesProfile {
+  id: string;
+  scientificName: string;
+  morphology: CellMorphology;
+}
 
 export interface GenomeTraits {
   metabolism: MetabolismType;
@@ -61,10 +69,12 @@ export const METABOLISM_CODONS: Record<MetabolismType, string> = {
   predator: 'PRE',
   fermenter: 'FER',
   chemolithotroph: 'QUI',
+  chemoheterotroph: 'HET',
 };
 
 export const MOTILITY_CODONS: Record<MotilityType, string> = {
   sessile: 'SES',
+  nonmotile: 'NOM',
   flagellated: 'FLA',
   ciliated: 'CIL',
   spirochete: 'AXL',
@@ -106,9 +116,11 @@ const METABOLISM_OPTIONS: readonly MetabolismType[] = [
   'predator',
   'fermenter',
   'chemolithotroph',
+  'chemoheterotroph',
 ];
 const MOTILITY_OPTIONS: readonly MotilityType[] = [
   'sessile',
+  'nonmotile',
   'flagellated',
   'ciliated',
   'spirochete',
@@ -117,6 +129,10 @@ const MOBILE_MOTILITY_OPTIONS: readonly MotilityType[] = [
   'flagellated',
   'ciliated',
   'spirochete',
+];
+const NON_SESSILE_MOTILITY_OPTIONS: readonly MotilityType[] = [
+  'nonmotile',
+  ...MOBILE_MOTILITY_OPTIONS,
 ];
 const WALL_OPTIONS: readonly WallType[] = [
   'gram_negative',
@@ -164,14 +180,18 @@ export class DNA {
     public traits: GenomeTraits,
     public stats: GenomeStats,
     generation: number = 1,
-    lineageName?: string
+    lineageName?: string,
+    public readonly referenceSpecies?: ReferenceSpeciesProfile
   ) {
     if (!this.traits.adaptation) {
       this.traits.adaptation = 'none';
     }
     this.generation = generation;
     this.recalculateDerivedCosts();
-    this.lineageName = lineageName || DNA.generateProceduralName(this.traits, this.stats);
+    this.lineageName =
+      lineageName ||
+      referenceSpecies?.scientificName ||
+      DNA.generateProceduralName(this.traits, this.stats);
   }
 
   /**
@@ -179,7 +199,7 @@ export class DNA {
    * (los flagelos rotatorios dan mayor velocidad punta que los cilios) y el peso de adaptaciones.
    */
   public static computeEffectiveSpeed(traits: GenomeTraits, rawSpeed: number): number {
-    if (traits.motility === 'sessile') return 0;
+    if (traits.motility === 'sessile' || traits.motility === 'nonmotile') return 0;
     const motilityMult =
       traits.motility === 'flagellated'
         ? SimConfig.FLAGELLA_SPEED_MULTIPLIER
@@ -291,6 +311,7 @@ export class DNA {
       predator: 'phago',
       fermenter: 'zymo',
       chemolithotroph: 'litho',
+      chemoheterotroph: 'chemo',
     };
     const metaRoot = metaRootMap[traits.metabolism];
 
@@ -311,6 +332,7 @@ export class DNA {
       flagellated: 'flagel',
       ciliated: 'cili',
       sessile: 'sessi',
+      nonmotile: 'apode',
       spirochete: 'spiro',
     };
     const interactionPartMap: Record<InteractionType, string> = {
@@ -342,7 +364,7 @@ export class DNA {
     if (adaptTag) statParts.push(adaptTag);
 
     const effSpeed = DNA.computeEffectiveSpeed(traits, stats.maxSpeed);
-    if (traits.motility !== 'sessile') {
+    if (traits.motility !== 'sessile' && traits.motility !== 'nonmotile') {
       if (effSpeed >= 2.8) statParts.push('velox');
       else if (effSpeed <= 1.1) statParts.push('lenta');
     }
@@ -371,9 +393,10 @@ export class DNA {
     // Una bacteria predadora no puede ser sésil (moriría de inanición al no poder cazar)
     const motilityPool: readonly MotilityType[] =
       metabolism === 'predator'
-        || !allowSessileMotility
         ? MOBILE_MOTILITY_OPTIONS
-        : MOTILITY_OPTIONS;
+        : allowSessileMotility
+          ? MOTILITY_OPTIONS
+          : NON_SESSILE_MOTILITY_OPTIONS;
     const motility = pickRandom(motilityPool);
 
     const wall = pickRandom(WALL_OPTIONS);
@@ -382,7 +405,10 @@ export class DNA {
     const adaptation: AdaptationType = 'none';
 
     const size = randomRange(6.0, 12.5, 0.5);
-    const maxSpeed = motility === 'sessile' ? 0 : randomRange(1.0, 3.4, 0.2);
+    const maxSpeed =
+      motility === 'sessile' || motility === 'nonmotile'
+        ? 0
+        : randomRange(1.0, 3.4, 0.2);
     const splitEnergy = Math.round(95 + size * 5.5 + randomRange(-10, 18, 1));
     const toxinPower = interaction === 'neutral' ? 0 : randomRange(0.8, 3.6, 0.2);
     const armor = randomRange(0.5, 8.5, 0.5);
@@ -427,7 +453,7 @@ export class DNA {
             ? 1.18
             : 1.0;
 
-    if (this.traits.motility === 'sessile') {
+    if (this.traits.motility === 'sessile' || this.traits.motility === 'nonmotile') {
       this.stats.maxSpeed = 0;
     }
 
@@ -494,7 +520,7 @@ export class DNA {
     if (Math.random() < SimConfig.MACRO_MUTATION_CHANCE) {
       const category = Math.floor(Math.random() * 5);
       if (category === 0) t.metabolism = pickRandom(METABOLISM_OPTIONS);
-      else if (category === 1) t.motility = pickRandom(MOBILE_MOTILITY_OPTIONS);
+      else if (category === 1) t.motility = pickRandom(NON_SESSILE_MOTILITY_OPTIONS);
       else if (category === 2) t.wall = pickRandom(WALL_OPTIONS);
       else if (category === 3) t.reproduction = pickRandom(REPRODUCTION_OPTIONS);
       else if (category === 4) t.interaction = pickRandom(INTERACTION_OPTIONS);
@@ -506,7 +532,10 @@ export class DNA {
 
     // Micro-evolución de estadísticas continuas
     s.size = mutateStat(s.size, 0.8, 5, 15);
-    s.maxSpeed = t.motility === 'sessile' ? 0 : mutateStat(Math.max(0.6, s.maxSpeed), 0.35, 0.4, 4.5);
+    s.maxSpeed =
+      t.motility === 'sessile' || t.motility === 'nonmotile'
+        ? 0
+        : mutateStat(Math.max(0.6, s.maxSpeed), 0.35, 0.4, 4.5);
     s.splitEnergy = mutateStat(s.splitEnergy, 12, 70, 260);
     s.toxinPower = t.interaction === 'neutral' ? 0 : mutateStat(Math.max(0.8, s.toxinPower), 0.4, 0.2, 5.0);
     s.armor = mutateStat(s.armor, 0.7, 0, 12);
@@ -516,6 +545,14 @@ export class DNA {
       Math.random() < p ? (this.hue + (Math.random() * 10 - 5) + 360) % 360 : this.hue;
 
     const nextName = this.lineageId === 'player_strain' ? this.lineageName : undefined;
-    return new DNA(this.lineageId, newHue, t, s, this.generation + 1, nextName);
+    return new DNA(
+      this.lineageId,
+      newHue,
+      t,
+      s,
+      this.generation + 1,
+      nextName,
+      this.referenceSpecies
+    );
   }
 }

@@ -149,27 +149,47 @@ Conecta tu repositorio Git a cualquiera de estas plataformas con los siguientes 
 * **Output / Publish directory:** `dist`
 * **Node.js version:** `20.x`
 
-### Opción D: Contenedor Docker
+### Opción D: Contenedor Docker y Despliegue con Traefik (`docker-compose.yml`)
 
-Si deseas empaquetar el juego en una imagen Docker ligera lista para producción, puedes crear un `Dockerfile` en la raíz con el siguiente contenido:
+El repositorio incluye un `Dockerfile` multietapa (`node:20-alpine` para compilación + `nginx:stable-alpine` con compresión Gzip y caché de estáticos en el puerto `80`), un `.dockerignore` y un archivo `docker-compose.yml` preconfigurado para integrarse en una infraestructura con **Traefik** como proxy inverso y **Homepage** como panel de servicios.
 
-```dockerfile
-# Etapa 1: Construcción
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+#### Despliegue mediante Docker Compose (recomendado con Traefik)
 
-# Etapa 2: Servidor Nginx ligero
-FROM nginx:stable-alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+El archivo `docker-compose.yml` construye el dominio del servicio componiendo `${EVOLOOTION_HOST_SUBDOMAIN}.${HOST_BASE}` tanto para la regla `Host(...)` de Traefik como para `homepage.href`.
+
+Asegúrate de que la red externa `traefik_proxy` exista en tu host Docker y ejecuta (cargando tu `.env` del directorio superior si aplica):
+
+```bash
+docker compose --env-file ../.env up -d --build
 ```
 
-Para construir y ejecutar el contenedor:
+El servicio `evolootion` se conectará automáticamente a la red `traefik_proxy`, exponiendo el puerto interno `80` a través del router `evolootion` en el dominio `${EVOLOOTION_HOST_SUBDOMAIN}.${HOST_BASE}` (entrypoint `websecure`) y registrando sus metadatos en el grupo `Juegos` del dashboard.
+
+#### Despliegue Automatizado por SSH (`deploy.sh`)
+
+El script `deploy.sh` permite actualizar y relanzar el contenedor en el servidor remoto desde tu máquina local (asumiendo acceso SSH por clave pública sin contraseña, `BatchMode=yes`).
+
+* **Sin valores por defecto:** Si las variables de entorno `EVOLOOTION_REMOTE_USER`, `EVOLOOTION_REMOTE_HOST` o `EVOLOOTION_REMOTE_PATH` no están definidas (ni se pasan por argumentos CLI), el script las solicitará interactivamente por consola.
+* **Resolución de dominio (`EVOLOOTION_HOST_SUBDOMAIN` y `HOST_BASE`):** El script comprueba por SSH si existe el fichero `${EVOLOOTION_REMOTE_PATH}/../.env` en el servidor remoto. Si existe, lo inyecta con `--env-file`; si no existe dicho fichero, el script preguntará interactivamente por `EVOLOOTION_HOST_SUBDOMAIN` y `HOST_BASE`.
+* **Actualización y despliegue:** Se conecta por SSH, sincroniza la rama `main` (`git fetch origin main && git checkout main && git reset --hard origin/main`) y ejecuta `docker compose up -d --build --remove-orphans`.
+
+```bash
+# Dar permisos de ejecución la primera vez
+chmod +x deploy.sh
+
+# Ejecución interactiva (preguntará por las variables no definidas en el entorno)
+./deploy.sh
+
+# Pasando parámetros explícitos por CLI
+./deploy.sh --user mi_usuario --host 192.168.1.100 --path /srv/evolootion
+
+# O mediante variables de entorno
+EVOLOOTION_REMOTE_USER=mi_usuario EVOLOOTION_REMOTE_HOST=192.168.1.100 EVOLOOTION_REMOTE_PATH=/opt/evolootion npm run deploy
+```
+
+#### Ejecución directa con Docker (sin Traefik)
+
+Si deseas construir y ejecutar el contenedor de forma aislada mapeando un puerto local:
 
 ```bash
 docker build -t evolootion:latest .

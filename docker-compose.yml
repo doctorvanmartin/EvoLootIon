@@ -1,0 +1,26 @@
+services:
+  evolootion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: evolootion:latest
+    container_name: evolootion
+    restart: unless-stopped
+    networks:
+      - traefik_proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.evolootion.rule=Host(`${EVOLOOTION_HOST_SUBDOMAIN}.${HOST_BASE}`)
+      - traefik.http.routers.evolootion.entrypoints=websecure
+      - traefik.http.services.evolootion.loadbalancer.server.port=80
+
+      # Dashboard metadata (Homepage)
+      - homepage.group=Juegos
+      - homepage.name=EvoLootIon
+      - homepage.description=Simulador de vida artificial y evolución bacteriana 2D
+      - homepage.href=https://${EVOLOOTION_HOST_SUBDOMAIN}.${HOST_BASE}
+      - homepage.icon=mdi-bacteria-outline
+
+networks:
+  traefik_proxy:
+    external: true

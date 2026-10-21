@@ -1,9 +1,17 @@
 import { Bacteria } from '../models/Bacteria';
-import { AdaptationType, MetabolismType, WallType } from '../models/DNA';
+import { AdaptationType, CellMorphology, MetabolismType, WallType } from '../models/DNA';
 import { Nutrient } from '../models/Nutrient';
 import { SimConfig } from '../config/SimulationConfig';
 
 export class ProceduralRenderer {
+  private static readonly COCCUS_CLUSTER_CENTERS: readonly (readonly [number, number])[] = [
+    [-0.45, -0.35],
+    [0.15, -0.55],
+    [0.55, -0.15],
+    [-0.4, 0.35],
+    [0.2, 0.35],
+  ];
+
   public static renderNutrient(ctx: CanvasRenderingContext2D, n: Nutrient): void {
     ctx.fillStyle = n.isOrganicCorpse
       ? 'rgba(251, 191, 36, 0.82)'
@@ -144,7 +152,7 @@ export class ProceduralRenderer {
       ctx.arc(-sep, 0, childR, 0, Math.PI * 2);
       ctx.arc(sep, 0, lobeR, 0, Math.PI * 2);
     } else {
-      this.traceSomaPath(ctx, traits.metabolism, r);
+      this.traceSomaPath(ctx, traits.metabolism, r, b.dna.referenceSpecies?.morphology);
     }
 
     ctx.fillStyle = b.isDying ? `hsl(${hue}, 45%, 38%)` : `hsl(${hue}, 75%, 46%)`;
@@ -193,10 +201,28 @@ export class ProceduralRenderer {
   private static traceSomaPath(
     ctx: CanvasRenderingContext2D,
     metabolism: MetabolismType,
-    r: number
+    r: number,
+    morphology?: CellMorphology
   ): void {
-    if (metabolism === 'photosynthetic') {
+    if (morphology === 'coccus_cluster') {
+      for (let i = 0; i < this.COCCUS_CLUSTER_CENTERS.length; i++) {
+        const center = this.COCCUS_CLUSTER_CENTERS[i];
+        const centerX = center[0] * r;
+        const centerY = center[1] * r;
+        ctx.moveTo(centerX + r * 0.48, centerY);
+        ctx.arc(centerX, centerY, r * 0.48, 0, Math.PI * 2);
+      }
+    } else if (morphology === 'coccus' || metabolism === 'photosynthetic') {
       ctx.arc(0, 0, r, 0, Math.PI * 2);
+    } else if (morphology === 'curved_rod') {
+      ctx.moveTo(-r * 1.15, -r * 0.18);
+      ctx.quadraticCurveTo(-r * 0.35, -r * 0.72, r * 0.25, -r * 0.18);
+      ctx.quadraticCurveTo(r * 0.85, r * 0.38, r * 1.15, r * 0.12);
+      ctx.quadraticCurveTo(r * 0.25, r * 0.72, -r * 0.3, r * 0.2);
+      ctx.quadraticCurveTo(-r * 0.85, -r * 0.2, -r * 1.15, -r * 0.18);
+      ctx.closePath();
+    } else if (morphology === 'rod') {
+      ctx.ellipse(0, 0, r * 1.3, r * 0.72, 0, 0, Math.PI * 2);
     } else if (metabolism === 'predator') {
       ctx.ellipse(0, 0, r * 1.5, r * 0.7, 0, 0, Math.PI * 2);
     } else if (metabolism === 'fermenter') {
@@ -508,7 +534,12 @@ export class ProceduralRenderer {
     }
 
     ctx.beginPath();
-    this.traceSomaPath(ctx, traits.metabolism, r * 1.08);
+    this.traceSomaPath(
+      ctx,
+      traits.metabolism,
+      r * 1.08,
+      b.dna.referenceSpecies?.morphology
+    );
 
     const wallThickness =
       traits.wall === 'gram_positive'
