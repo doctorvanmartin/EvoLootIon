@@ -34,6 +34,7 @@ export interface AgeAdaptedContent {
   section1Heading: string;
   paretoTitle: string;
   paretoBody: string;
+  substrateLabel: string;
   categories: {
     metabolism: { title: string; locusHint: string };
     motility: { title: string; locusHint: string };
@@ -171,6 +172,8 @@ export interface LocaleBundle {
       btnEditorDna: string;
       btnPause: string;
       btnResume: string;
+      btnSpeedTitle: string;
+      lightLabel: string;
       btnFeed: string;
       btnRemoveSubstrate: string;
       btnDecreaseLightRadius: string;
@@ -332,10 +335,12 @@ const ES_BUNDLE: LocaleBundle = {
       btnEditorDna: 'Editor ADN',
       btnPause: 'Pausar',
       btnResume: 'Reanudar',
-      btnFeed: '+ Sustrato',
-      btnRemoveSubstrate: '− Sustrato',
-      btnDecreaseLightRadius: '− Radio luz',
-      btnIncreaseLightRadius: '+ Radio luz',
+      btnSpeedTitle: 'Cambiar velocidad (1x / 2x / 4x)',
+      lightLabel: 'Luz',
+      btnFeed: 'Añadir sustrato',
+      btnRemoveSubstrate: 'Retirar sustrato',
+      btnDecreaseLightRadius: 'Reducir radio de luz',
+      btnIncreaseLightRadius: 'Aumentar radio de luz',
       btnResetCam: 'Centrar Vista',
       btnDetailAuto: 'Detalle: Auto',
       btnDetailLow: 'Detalle: Bajo',
@@ -375,6 +380,7 @@ const ES_BUNDLE: LocaleBundle = {
       paretoTitle: 'Regla del Hambre (Principio de Pareto):',
       paretoBody:
         'Si haces un bichito gigante, rapidísimo y con muchas armas, ¡tendrá muchísima hambre todo el rato y se quedará sin energía si hay poca comida!',
+      substrateLabel: 'Comida',
       categories: {
         metabolism: {
           title: 'A. ¿Cómo come y qué forma tiene? (Metabolismo)',
@@ -613,6 +619,7 @@ const ES_BUNDLE: LocaleBundle = {
       paretoTitle: 'Equilibrio de la Naturaleza (Regla de Pareto):',
       paretoBody:
         'Cada habilidad cuesta energía (ATP). Si creas una bacteria enorme, rapidísima y llena de defensas, gastará tanta energía por segundo que morirá de hambre cuando escasee la comida.',
+      substrateLabel: 'Comida',
       categories: {
         metabolism: {
           title: 'A. ¿Cómo consigue energía y qué forma tiene? (Metabolismo)',
@@ -851,6 +858,7 @@ const ES_BUNDLE: LocaleBundle = {
       paretoTitle: 'Regla de la Naturaleza (Principio de Pareto):',
       paretoBody:
         'Toda adaptación tiene un coste metabólico en ATP (Ley de Kleiber). Una bacteria gigante, veloz y armada consumirá tanta energía que morirá de inanición si escasea el sustrato.',
+      substrateLabel: 'Sustrato',
       categories: {
         metabolism: {
           title: 'A. ¿Cómo se alimenta y qué forma tiene? (Metabolismo y Tamaño)',
@@ -1089,6 +1097,7 @@ const ES_BUNDLE: LocaleBundle = {
       paretoTitle: 'Principio de Pareto y Ley de Kleiber:',
       paretoBody:
         'Una bacteria muy rápida, grande y armada sufrirá un drenaje metabólico de ATP altísimo y colapsará por inanición cuando el sustrato escasee.',
+      substrateLabel: 'Sustrato',
       categories: {
         metabolism: {
           title: 'A. Metabolismo, Nutrición y Tamaño (Morfología Base)',
@@ -1424,10 +1433,12 @@ const EN_BUNDLE: LocaleBundle = {
       btnEditorDna: 'DNA Editor',
       btnPause: 'Pause',
       btnResume: 'Resume',
-      btnFeed: '+ Substrate',
-      btnRemoveSubstrate: '− Substrate',
-      btnDecreaseLightRadius: '− Light radius',
-      btnIncreaseLightRadius: '+ Light radius',
+      btnSpeedTitle: 'Cycle simulation speed (1x / 2x / 4x)',
+      lightLabel: 'Light',
+      btnFeed: 'Add substrate',
+      btnRemoveSubstrate: 'Remove substrate',
+      btnDecreaseLightRadius: 'Decrease light radius',
+      btnIncreaseLightRadius: 'Increase light radius',
       btnResetCam: 'Center View',
       btnDetailAuto: 'Detail: Auto',
       btnDetailLow: 'Detail: Low',
@@ -1467,6 +1478,7 @@ const EN_BUNDLE: LocaleBundle = {
       paretoTitle: 'Tummy Rule (Pareto Principle):',
       paretoBody:
         'If you make a giant, super-fast microbe with lots of weapons, it will get super hungry all the time and run out of energy if food is scarce!',
+      substrateLabel: 'Food',
       categories: {
         metabolism: {
           title: 'A. How does it eat & what shape is it? (Metabolism)',
@@ -1705,6 +1717,7 @@ const EN_BUNDLE: LocaleBundle = {
       paretoTitle: 'Nature’s Balance (Pareto Rule):',
       paretoBody:
         'Every ability costs energy (ATP). If you build a huge, super-fast, heavily armed bacterium, it will burn so much energy per second that it will starve when food runs low.',
+      substrateLabel: 'Food',
       categories: {
         metabolism: {
           title: 'A. How does it get energy & what shape is it? (Metabolism)',
@@ -1943,6 +1956,7 @@ const EN_BUNDLE: LocaleBundle = {
       paretoTitle: 'Law of Nature (Pareto Principle):',
       paretoBody:
         'Every adaptation has an ATP metabolic cost (Kleiber’s Law). A huge, fast, heavily armed bacterium will consume so much energy that it will starve if substrate runs low.',
+      substrateLabel: 'Substrate',
       categories: {
         metabolism: {
           title: 'A. How does it feed & what is its morphology? (Metabolism & Size)',
@@ -2181,6 +2195,7 @@ const EN_BUNDLE: LocaleBundle = {
       paretoTitle: 'Pareto Principle & Kleiber’s Law:',
       paretoBody:
         'A very fast, large, heavily armed bacterium will suffer extreme metabolic ATP drain and collapse from starvation when substrate becomes scarce.',
+      substrateLabel: 'Substrate',
       categories: {
         metabolism: {
           title: 'A. Metabolism, Nutrition & Size (Base Morphology)',

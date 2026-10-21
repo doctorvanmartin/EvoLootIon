@@ -304,6 +304,31 @@ export class DNA {
   }
 
   /**
+   * Devuelve el rango de plasticidad morfológica (escala de radio mínima en inanición y máxima
+   * antes de dividirse) gobernado por el tipo de metabolismo (locus trófico).
+   */
+  public static getMetabolicGrowthRange(metabolism: MetabolismType): {
+    readonly min: number;
+    readonly max: number;
+  } {
+    switch (metabolism) {
+      case 'predator':
+        return SimConfig.GROWTH_RANGE_PREDATOR;
+      case 'saprophyte':
+        return SimConfig.GROWTH_RANGE_SAPROPHYTE;
+      case 'fermenter':
+        return SimConfig.GROWTH_RANGE_FERMENTER;
+      case 'photosynthetic':
+        return SimConfig.GROWTH_RANGE_PHOTOSYNTHETIC;
+      case 'chemolithotroph':
+        return SimConfig.GROWTH_RANGE_CHEMOLITHOTROPH;
+      case 'chemoheterotroph':
+      default:
+        return SimConfig.GROWTH_RANGE_CHEMOHETEROTROPH;
+    }
+  }
+
+  /**
    * Construye los loci emparejados de cada categoría biológica con su parámetro cuantitativo.
    */
   public static buildCategoryLoci(

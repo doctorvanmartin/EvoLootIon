@@ -12,13 +12,175 @@ export class ProceduralRenderer {
     [0.2, 0.35],
   ];
 
-  public static renderNutrient(ctx: CanvasRenderingContext2D, n: Nutrient): void {
-    ctx.fillStyle = n.isOrganicCorpse
-      ? 'rgba(251, 191, 36, 0.82)'
-      : 'rgba(74, 222, 128, 0.75)';
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-    ctx.fill();
+  public static renderNutrient(
+    ctx: CanvasRenderingContext2D,
+    n: Nutrient,
+    lowDetail: boolean = false
+  ): void {
+    if (lowDetail) {
+      ctx.fillStyle = n.isOrganicCorpse
+        ? `hsla(${n.hue}, 55%, 52%, 0.78)`
+        : `hsla(${n.hue}, 78%, 62%, 0.75)`;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(n.x, n.y);
+    ctx.rotate(n.angle);
+
+    const r = n.radius;
+    const h = n.hue;
+
+    if (n.isOrganicCorpse) {
+      // Detritus celular lisado (cadáver orgánico): fantasma de membrana roto,
+      // vesículas lipídicas dispersas y hebras de cromatina / péptidos coagulados
+      const rx = r * 1.18;
+      const ry = r * n.aspect;
+
+      // Halo turbio de lisis citoplasmática
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx * 1.25, ry * 1.25, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${h}, 45%, 38%, 0.22)`;
+      ctx.fill();
+
+      // Membrana colapsada e irregular (fantasma celular roto)
+      ctx.beginPath();
+      ctx.moveTo(-rx * 0.95, -ry * 0.25);
+      ctx.quadraticCurveTo(-rx * 0.35, -ry * 1.05, rx * 0.45, -ry * 0.72);
+      ctx.quadraticCurveTo(rx * 1.08, -ry * 0.1, rx * 0.78, ry * 0.65);
+      ctx.quadraticCurveTo(rx * 0.1, ry * 1.05, -rx * 0.68, ry * 0.72);
+      ctx.quadraticCurveTo(-rx * 1.1, ry * 0.2, -rx * 0.95, -ry * 0.25);
+      ctx.closePath();
+      ctx.fillStyle = `hsla(${h}, 38%, 32%, 0.68)`;
+      ctx.fill();
+
+      ctx.setLineDash([2.2, 1.8]);
+      ctx.lineWidth = 1.0;
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.72)';
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Gránulos proteicos / lipídicos coagulados en el interior del cadáver
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.85)';
+      ctx.beginPath();
+      ctx.arc(-rx * 0.28, -ry * 0.12, Math.max(1.1, r * 0.28), 0, Math.PI * 2);
+      ctx.arc(rx * 0.32, ry * 0.18, Math.max(0.95, r * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+
+      // Vesícula apoptótica desprendida y hebra de nucleoide liberada
+      ctx.fillStyle = `hsla(${h}, 55%, 58%, 0.75)`;
+      ctx.beginPath();
+      ctx.arc(rx * 0.92, -ry * 0.55, Math.max(0.85, r * 0.19), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(-rx * 0.45, ry * 0.15);
+      ctx.quadraticCurveTo(0, -ry * 0.35, rx * 0.42, ry * 0.05);
+      ctx.strokeStyle = 'rgba(253, 230, 138, 0.65)';
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+
+      ctx.restore();
+      return;
+    }
+
+    // Sustrato nutritivo: morfologías variadas (cristales minerales, glúcidos, agregados peptídicos)
+    if (n.shape === 'hex_crystal') {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const px = Math.cos(a) * (r * 1.15);
+        const py = Math.sin(a) * (r * 0.95);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fillStyle = `hsla(${h}, 80%, 54%, 0.78)`;
+      ctx.fill();
+      ctx.lineWidth = 0.75;
+      ctx.strokeStyle = `hsla(${h}, 92%, 82%, 0.85)`;
+      ctx.stroke();
+
+      // Faceta interna cristalina
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.55, -r * 0.3);
+      ctx.lineTo(r * 0.55, -r * 0.3);
+      ctx.lineTo(0, r * 0.55);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.fill();
+    } else if (n.shape === 'rhomboid') {
+      const rx = r * 1.32;
+      const ry = r * 0.82;
+      ctx.beginPath();
+      ctx.moveTo(0, -ry);
+      ctx.lineTo(rx, 0);
+      ctx.lineTo(0, ry);
+      ctx.lineTo(-rx, 0);
+      ctx.closePath();
+      ctx.fillStyle = `hsla(${h + 15}, 82%, 56%, 0.8)`;
+      ctx.fill();
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = 'rgba(209, 250, 229, 0.8)';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-rx * 0.65, 0);
+      ctx.lineTo(rx * 0.65, 0);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.lineWidth = 0.65;
+      ctx.stroke();
+    } else if (n.shape === 'amino_cluster') {
+      // Tríada molecular / agregado de aminoácidos
+      const subR = r * 0.64;
+      ctx.fillStyle = `hsla(${h - 10}, 78%, 55%, 0.82)`;
+      ctx.strokeStyle = `hsla(${h}, 90%, 82%, 0.7)`;
+      ctx.lineWidth = 0.6;
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        const cx = Math.cos(a) * (r * 0.52);
+        const cy = Math.sin(a) * (r * 0.52);
+        ctx.beginPath();
+        ctx.arc(cx, cy, subR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else if (n.shape === 'mineral_shard') {
+      // Esquirla mineral asimétrica con arista refractante
+      ctx.beginPath();
+      ctx.moveTo(-r * 1.15, -r * 0.35);
+      ctx.lineTo(r * 0.25, -r * 1.05);
+      ctx.lineTo(r * 1.2, -r * 0.1);
+      ctx.lineTo(r * 0.55, r * 0.95);
+      ctx.lineTo(-r * 0.85, r * 0.72);
+      ctx.closePath();
+      ctx.fillStyle = `hsla(${h + 22}, 75%, 52%, 0.8)`;
+      ctx.fill();
+      ctx.lineWidth = 0.75;
+      ctx.strokeStyle = `hsla(${h + 28}, 95%, 84%, 0.85)`;
+      ctx.stroke();
+    } else {
+      // Gránulo polisacárido / gota de glucosa hidratada con brillo lenticular
+      const rx = r * 1.12;
+      const ry = r * n.aspect;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${h}, 82%, 54%, 0.78)`;
+      ctx.fill();
+      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = `hsla(${h}, 90%, 80%, 0.75)`;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.ellipse(-rx * 0.28, -ry * 0.25, rx * 0.35, ry * 0.24, -0.3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   public static renderBacteria(
@@ -122,11 +284,42 @@ export class ProceduralRenderer {
       if (traits.motility === 'flagellated') {
         this.drawFlagellum(ctx, r, hue, b.animPhase, traits.metabolism, b.dna.referenceSpecies?.morphology);
       } else if (traits.motility === 'ciliated') {
-        this.drawCilia(ctx, r, hue, b.animPhase, traits.metabolism, b.dna.referenceSpecies?.morphology);
+        this.drawCilia(
+          ctx,
+          r,
+          hue,
+          b.animPhase,
+          traits.metabolism,
+          b.dna.referenceSpecies?.morphology,
+          traits.wall,
+          b.dna.stats.armor,
+          b.dividingProgress
+        );
       } else if (traits.motility === 'spirochete') {
-        this.drawAxialFilament(ctx, r, hue, b.animPhase);
+        this.drawAxialFilament(
+          ctx,
+          r,
+          hue,
+          b.animPhase,
+          traits.metabolism,
+          b.dna.referenceSpecies?.morphology,
+          traits.wall,
+          b.dna.stats.armor,
+          b.dividingProgress,
+          'back'
+        );
       } else if (traits.motility === 'sessile') {
-        this.drawBiofilmPili(ctx, r, hue, b.animPhase);
+        this.drawBiofilmPili(
+          ctx,
+          r,
+          hue,
+          b.animPhase,
+          traits.metabolism,
+          b.dna.referenceSpecies?.morphology,
+          traits.wall,
+          b.dna.stats.armor,
+          b.dividingProgress
+        );
       }
 
       if (traits.reproduction === 'conjugation') {
@@ -171,6 +364,22 @@ export class ProceduralRenderer {
 
     // 4. Pared Celular
     this.strokeCellWall(ctx, traits.wall, hue, lowDetail, b.isDying, b.dna.stats.armor);
+
+    // 4b. Tramo periplásmico frontal y nodos subpolares del filamento axial (Espiroqueta)
+    if (!lowDetail && !b.isDying && traits.motility === 'spirochete') {
+      this.drawAxialFilament(
+        ctx,
+        r,
+        hue,
+        b.animPhase,
+        traits.metabolism,
+        b.dna.referenceSpecies?.morphology,
+        traits.wall,
+        b.dna.stats.armor,
+        b.dividingProgress,
+        'front'
+      );
+    }
 
     // 5. Atributos Únicos (Pinzas, Gran Boca, Pinchos, Bioluminiscencia, Ventosa)
     if (!lowDetail && adapt !== 'none') {
@@ -252,6 +461,56 @@ export class ProceduralRenderer {
     }
   }
 
+  private static getSomaHalfWidth(
+    metabolism: MetabolismType,
+    r: number,
+    morphology?: CellMorphology,
+    dividingProgress: number = 0
+  ): number {
+    if (dividingProgress > 0) {
+      const sep = dividingProgress * r * 0.78;
+      const lobeR = r * (0.92 - dividingProgress * 0.14);
+      return sep + lobeR;
+    }
+    if (morphology === 'coccus_cluster') return r * 1.03;
+    if (morphology === 'coccus' || metabolism === 'photosynthetic') return r;
+    if (morphology === 'curved_rod') return r * 1.15;
+    if (morphology === 'rod') return r * 1.3;
+    if (metabolism === 'predator') return r * 1.5;
+    if (metabolism === 'fermenter') return r * 1.2;
+    if (metabolism === 'chemolithotroph') return r * 1.22;
+    return r * 1.3;
+  }
+
+  private static getSomaHalfHeight(
+    metabolism: MetabolismType,
+    r: number,
+    morphology?: CellMorphology,
+    dividingProgress: number = 0
+  ): number {
+    if (dividingProgress > 0) {
+      return r * (0.92 - dividingProgress * 0.14);
+    }
+    if (morphology === 'coccus_cluster') return r * 0.95;
+    if (morphology === 'coccus' || metabolism === 'photosynthetic') return r;
+    if (morphology === 'curved_rod') return r * 0.72;
+    if (morphology === 'rod') return r * 0.72;
+    if (metabolism === 'predator') return r * 0.7;
+    if (metabolism === 'fermenter') return r * 0.78;
+    if (metabolism === 'chemolithotroph') return r * 0.98;
+    return r * 0.85;
+  }
+
+  private static getWallBaseWidth(wall: WallType, armor: number = 0): number {
+    return wall === 'gram_positive'
+      ? 3.1 + armor * 0.1
+      : wall === 's_layer'
+        ? 2.3 + armor * 0.06
+        : wall === 'capsule'
+          ? 1.8
+          : 1.5;
+  }
+
   private static strokeCellWall(
     ctx: CanvasRenderingContext2D,
     wall: WallType,
@@ -263,14 +522,7 @@ export class ProceduralRenderer {
     if (isDying) {
       ctx.setLineDash([3, 3]);
     }
-    const baseWidth =
-      wall === 'gram_positive'
-        ? 3.1 + armor * 0.1
-        : wall === 's_layer'
-          ? 2.3 + armor * 0.06
-          : wall === 'capsule'
-            ? 1.8
-            : 1.5;
+    const baseWidth = this.getWallBaseWidth(wall, armor);
     ctx.lineWidth = baseWidth;
     ctx.strokeStyle = `hsl(${hue}, 88%, 22%)`;
     ctx.stroke();
@@ -891,39 +1143,54 @@ export class ProceduralRenderer {
     }
 
     if (traits.wall === 'capsule') {
-      ctx.beginPath();
-      ctx.ellipse(0, 0, r * 1.85, r * 1.38, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${hue}, 85%, 62%, 0.2)`;
-      ctx.fill();
-      ctx.strokeStyle = `hsla(${hue}, 90%, 75%, 0.35)`;
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
+      this.drawCapsuleHalo(ctx, r * 1.08, hue, b.animPhase);
     }
 
     if (traits.motility === 'flagellated') {
-      ctx.save();
-      ctx.beginPath();
-      const startX = traits.metabolism === 'photosynthetic' ? -r * 0.95 : -r * 1.35;
-      ctx.moveTo(startX, 0);
-      const segments = 6;
-      const segLength = 5.8 + b.dna.getEffectiveMaxSpeed() * 0.95;
-      for (let i = 1; i <= segments; i++) {
-        const segX = startX - i * segLength;
-        const segY = Math.sin(b.animPhase * 1.35 - i * 1.05) * (2.2 + i * 0.85);
-        ctx.lineTo(segX, segY);
-      }
-      ctx.strokeStyle = `hsla(${hue}, 72%, 62%, 0.85)`;
-      ctx.lineWidth = 2.1;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-      ctx.restore();
+      this.drawFlagellum(
+        ctx,
+        r * 1.08,
+        hue,
+        b.animPhase * 1.35,
+        traits.metabolism,
+        b.dna.referenceSpecies?.morphology,
+        true
+      );
     } else if (traits.motility === 'ciliated') {
-      this.drawCilia(ctx, r, hue, b.animPhase * 1.2);
+      this.drawCilia(
+        ctx,
+        r * 1.08,
+        hue,
+        b.animPhase * 1.2,
+        traits.metabolism,
+        b.dna.referenceSpecies?.morphology,
+        traits.wall,
+        b.dna.stats.armor
+      );
     } else if (traits.motility === 'spirochete') {
-      this.drawAxialFilament(ctx, r * 1.1, hue, b.animPhase * 1.2);
+      this.drawAxialFilament(
+        ctx,
+        r * 1.08,
+        hue,
+        b.animPhase * 1.2,
+        traits.metabolism,
+        b.dna.referenceSpecies?.morphology,
+        traits.wall,
+        b.dna.stats.armor,
+        0,
+        'back'
+      );
     } else if (traits.motility === 'sessile') {
-      this.drawBiofilmPili(ctx, r, hue);
+      this.drawBiofilmPili(
+        ctx,
+        r * 1.08,
+        hue,
+        b.animPhase,
+        traits.metabolism,
+        b.dna.referenceSpecies?.morphology,
+        traits.wall,
+        b.dna.stats.armor
+      );
     }
 
     if (traits.reproduction === 'conjugation') {
@@ -938,59 +1205,41 @@ export class ProceduralRenderer {
       b.dna.referenceSpecies?.morphology
     );
 
-    const wallThickness =
-      traits.wall === 'gram_positive'
-        ? 4.0 + b.dna.stats.armor * 0.16
-        : traits.wall === 's_layer'
-          ? 3.2
-          : traits.wall === 'gram_negative'
-            ? 2.4
-            : 2.8;
-
-    ctx.fillStyle = `hsl(${hue}, 78%, 50%)`;
+    ctx.fillStyle = `hsl(${hue}, 76%, 46%)`;
     ctx.fill();
-    ctx.lineWidth = wallThickness;
-    ctx.strokeStyle = `hsl(${hue}, 78%, 26%)`;
-    ctx.stroke();
 
-    if (traits.wall === 'gram_negative') {
-      ctx.strokeStyle = `hsla(${hue}, 95%, 76%, 0.7)`;
-      ctx.lineWidth = 1.0;
-      ctx.stroke();
-    } else if (traits.wall === 's_layer') {
-      ctx.save();
-      ctx.setLineDash([2.2, 2.2]);
-      ctx.strokeStyle = `hsla(${(hue + 25) % 360}, 95%, 85%, 0.9)`;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.restore();
+    // Ultraestructura intracelular recortada al contorno del soma en la vista de microscopio
+    ctx.save();
+    ctx.clip();
+    this.drawIntracellularUltrastructure(ctx, b, r * 1.08, hue);
+    ctx.restore();
+
+    ctx.beginPath();
+    this.traceSomaPath(
+      ctx,
+      traits.metabolism,
+      r * 1.08,
+      b.dna.referenceSpecies?.morphology
+    );
+    this.strokeCellWall(ctx, traits.wall, hue, false, false, b.dna.stats.armor);
+
+    if (traits.motility === 'spirochete') {
+      this.drawAxialFilament(
+        ctx,
+        r * 1.08,
+        hue,
+        b.animPhase * 1.2,
+        traits.metabolism,
+        b.dna.referenceSpecies?.morphology,
+        traits.wall,
+        b.dna.stats.armor,
+        0,
+        'front'
+      );
     }
 
     if (adapt !== 'none') {
       this.drawUniqueAdaptation(ctx, adapt, traits.metabolism, r * 1.08, hue, b.animPhase, false);
-    }
-
-    ctx.beginPath();
-    ctx.ellipse(
-      r * 0.18,
-      -r * 0.04,
-      Math.max(1.8, r * 0.28),
-      Math.max(1.3, r * 0.2),
-      0,
-      0,
-      Math.PI * 2
-    );
-    ctx.fillStyle =
-      traits.interaction !== 'neutral'
-        ? '#f472b6'
-        : `hsla(${(hue + 40) % 360}, 90%, 78%, 0.75)`;
-    ctx.fill();
-
-    if (traits.reproduction === 'sporulation') {
-      ctx.beginPath();
-      ctx.arc(-r * 0.45, 0, Math.max(1.5, r * 0.24), 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(226, 232, 240, 0.8)';
-      ctx.fill();
     }
 
     ctx.restore();
@@ -1001,62 +1250,180 @@ export class ProceduralRenderer {
     ctx: CanvasRenderingContext2D,
     r: number,
     hue: number,
-    phase: number
+    phase: number,
+    metabolism: MetabolismType = 'chemoheterotroph',
+    morphology?: CellMorphology,
+    isMicroscope: boolean = false
   ): void {
+    const startX =
+      morphology === 'coccus' || metabolism === 'photosynthetic'
+        ? -r * 0.96
+        : metabolism === 'predator'
+          ? -r * 1.46
+          : -r * 1.26;
+
+    ctx.save();
+    // Cuerpo basal flagelar (anillo motor MS/C insertado en el polo posterior)
+    ctx.fillStyle = `hsl(${(hue + 25) % 360}, 85%, 72%)`;
     ctx.beginPath();
-    ctx.moveTo(-r * 1.2, 0);
-    for (let i = 1; i <= 4; i++) {
-      const segX = -r * 1.2 - i * 5.5;
-      const segY = Math.sin(phase + i * 1.3) * (3 + i * 0.9);
+    ctx.arc(startX, 0, Math.max(1.2, r * 0.16), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Filamento helicoidal principal con gancho flagelar y atenuación distal
+    const segments = isMicroscope ? 8 : 6;
+    const segLen = isMicroscope ? r * 0.62 : r * 0.56;
+    ctx.beginPath();
+    ctx.moveTo(startX, 0);
+    for (let i = 1; i <= segments; i++) {
+      const segX = startX - i * segLen;
+      const amp = (1.6 + i * 0.72) * (r / 8);
+      const segY = Math.sin(phase - i * 1.1) * amp;
+      const prevX = startX - (i - 0.5) * segLen;
+      const prevY = Math.sin(phase - (i - 0.5) * 1.1) * amp;
+      ctx.quadraticCurveTo(prevX, prevY, segX, segY);
+    }
+    ctx.strokeStyle = `hsla(${hue}, 78%, 68%, 0.82)`;
+    ctx.lineWidth = isMicroscope ? 1.9 : 1.55;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Segundo filamento secundario desfasado (penacho lofótrico sutil)
+    ctx.beginPath();
+    ctx.moveTo(startX, r * 0.12);
+    for (let i = 1; i <= segments - 1; i++) {
+      const segX = startX - i * (segLen * 0.86);
+      const amp = (1.2 + i * 0.58) * (r / 8);
+      const segY = r * 0.12 + Math.cos(phase - i * 1.15) * amp;
       ctx.lineTo(segX, segY);
     }
-    ctx.strokeStyle = `hsla(${hue}, 70%, 60%, 0.65)`;
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = `hsla(${hue}, 70%, 62%, 0.45)`;
+    ctx.lineWidth = isMicroscope ? 1.15 : 0.95;
     ctx.stroke();
+    ctx.restore();
   }
 
   private static drawCilia(
     ctx: CanvasRenderingContext2D,
     r: number,
     hue: number,
-    phase: number
+    phase: number,
+    metabolism: MetabolismType = 'chemoheterotroph',
+    morphology?: CellMorphology,
+    wall: WallType = 'gram_negative',
+    armor: number = 0,
+    dividingProgress: number = 0
   ): void {
-    ctx.strokeStyle = `hsla(${hue}, 70%, 65%, 0.55)`;
-    ctx.lineWidth = 1.1;
-    const count = 12;
+    const wallPad = this.getWallBaseWidth(wall, armor) * 0.45;
+    const rx = this.getSomaHalfWidth(metabolism, r, morphology, dividingProgress) * 0.96 + wallPad;
+    const ry = this.getSomaHalfHeight(metabolism, r, morphology, dividingProgress) * 0.96 + wallPad;
+
+    ctx.save();
+    ctx.strokeStyle = `hsla(${hue}, 78%, 70%, 0.65)`;
+    ctx.lineWidth = 1.05;
+    ctx.lineCap = 'round';
+    const count = 16;
     ctx.beginPath();
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2;
-      const sx = Math.cos(a) * (r * 1.2);
-      const sy = Math.sin(a) * (r * 0.85);
-      const wave = Math.sin(phase + i) * 0.3;
-      const ex = Math.cos(a + wave) * (r * 1.2 + 3.5);
-      const ey = Math.sin(a + wave) * (r * 0.85 + 3.5);
+      const sx = Math.cos(a) * rx;
+      const sy = Math.sin(a) * ry;
+      // Onda metacrónica coordinada a lo largo del perímetro celular
+      const metachronalWave = Math.sin(phase * 1.6 + i * 0.65) * 0.36;
+      const cLen = Math.max(2.8, r * 0.42);
+      const midX = sx + Math.cos(a + metachronalWave * 0.5) * (cLen * 0.55);
+      const midY = sy + Math.sin(a + metachronalWave * 0.5) * (cLen * 0.55);
+      const ex = sx + Math.cos(a + metachronalWave) * cLen;
+      const ey = sy + Math.sin(a + metachronalWave) * cLen;
       ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
+      ctx.quadraticCurveTo(midX, midY, ex, ey);
     }
     ctx.stroke();
+    ctx.restore();
   }
 
   private static drawAxialFilament(
     ctx: CanvasRenderingContext2D,
     r: number,
     hue: number,
-    phase: number
+    phase: number,
+    metabolism: MetabolismType = 'chemoheterotroph',
+    morphology?: CellMorphology,
+    wall: WallType = 'gram_negative',
+    armor: number = 0,
+    dividingProgress: number = 0,
+    layer: 'back' | 'front' = 'front'
   ): void {
+    const wallPad = this.getWallBaseWidth(wall, armor) * 0.5;
+    const rx = this.getSomaHalfWidth(metabolism, r, morphology, dividingProgress);
+    const ry = this.getSomaHalfHeight(metabolism, r, morphology, dividingProgress);
+
+    const poleX = rx + wallPad * 0.65 + Math.max(1.2, r * 0.12);
+    const spanX = poleX + Math.max(1.4, r * 0.14);
+    const ampY = ry + wallPad * 0.85 + Math.max(2.2, r * 0.24);
+    const steps = 16;
+
     ctx.save();
-    ctx.strokeStyle = `hsla(${(hue + 30) % 360}, 90%, 75%, 0.75)`;
-    ctx.lineWidth = 1.3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (layer === 'back') {
+      // Hélice posterior (detrás del soma): sus crestas y giros polares asoman por el contorno exterior
+      ctx.strokeStyle = `hsla(${hue}, 85%, 64%, 0.62)`;
+      ctx.lineWidth = Math.max(1.15, r * 0.13);
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = -spanX + t * (spanX * 2);
+        const env = Math.pow(Math.sin(t * Math.PI), 0.55);
+        const y = -Math.sin(phase * 1.8 + t * Math.PI * 3.2) * (ampY * env);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // Capa frontal periplásmica: traza secundaria translúcida sobre el soma para dar lectura de doble hélice
+    ctx.strokeStyle = `hsla(${hue}, 88%, 68%, 0.36)`;
+    ctx.lineWidth = Math.max(0.95, r * 0.1);
     ctx.beginPath();
-    const steps = 10;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      const x = -r * 1.35 + t * (r * 2.7);
-      const y = Math.sin(phase * 1.8 + t * Math.PI * 3) * (r * 0.72);
+      const x = -spanX + t * (spanX * 2);
+      const env = Math.pow(Math.sin(t * Math.PI), 0.55);
+      const y = -Math.sin(phase * 1.8 + t * Math.PI * 3.2) * (ampY * 0.92 * env);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
+
+    // Cinta periplásmica principal torsionada (endoflagelo helicoidal cruzando sobre el soma y la pared)
+    ctx.strokeStyle = `hsla(${(hue + 32) % 360}, 95%, 78%, 0.88)`;
+    ctx.lineWidth = Math.max(1.35, r * 0.15);
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = -spanX + t * (spanX * 2);
+      const env = Math.pow(Math.sin(t * Math.PI), 0.55);
+      const y = Math.sin(phase * 1.8 + t * Math.PI * 3.2) * (ampY * env);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Nodos de anclaje subpolar (cuerpos basales de los endoflagelos periplásmicos en ambos polos)
+    const nodeR = Math.max(1.35, r * 0.16);
+    ctx.fillStyle = `hsla(${(hue + 35) % 360}, 95%, 84%, 0.95)`;
+    ctx.strokeStyle = `hsla(${hue}, 90%, 20%, 0.85)`;
+    ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.arc(-poleX, 0, nodeR, 0, Math.PI * 2);
+    ctx.moveTo(poleX + nodeR, 0);
+    ctx.arc(poleX, 0, nodeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
     ctx.restore();
   }
 
@@ -1066,29 +1433,76 @@ export class ProceduralRenderer {
     hue: number,
     phase: number
   ): void {
+    const tipX = r * 0.92 + Math.sin(phase * 1.1) * 1.8;
+    const tipY = -r * 1.48 + Math.cos(phase * 0.9) * 1.2;
+
     ctx.save();
-    ctx.strokeStyle = `hsla(${(hue + 60) % 360}, 85%, 72%, 0.7)`;
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = `hsla(${(hue + 60) % 360}, 88%, 74%, 0.78)`;
+    ctx.lineWidth = 1.25;
     ctx.beginPath();
-    ctx.moveTo(0, -r * 0.85);
-    ctx.quadraticCurveTo(
-      r * 0.4,
-      -r * 1.65,
-      r * 0.9 + Math.sin(phase) * 2,
-      -r * 1.45
-    );
+    ctx.moveTo(0, -r * 0.78);
+    ctx.quadraticCurveTo(r * 0.38, -r * 1.55, tipX, tipY);
     ctx.stroke();
+
+    // Vesícula / adhesina terminal del pilus conjugativo F
+    ctx.fillStyle = `hsla(${(hue + 60) % 360}, 95%, 84%, 0.9)`;
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, Math.max(1.1, r * 0.14), 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
   private static drawBiofilmPili(
     ctx: CanvasRenderingContext2D,
     r: number,
-    hue: number
+    hue: number,
+    phase: number = 0,
+    metabolism: MetabolismType = 'chemoheterotroph',
+    morphology?: CellMorphology,
+    wall: WallType = 'gram_negative',
+    armor: number = 0,
+    dividingProgress: number = 0
   ): void {
-    ctx.fillStyle = `hsla(${hue}, 65%, 55%, 0.14)`;
+    const wallPad = this.getWallBaseWidth(wall, armor) * 0.5;
+    const rx = this.getSomaHalfWidth(metabolism, r, morphology, dividingProgress) + wallPad * 0.6;
+    const ry = this.getSomaHalfHeight(metabolism, r, morphology, dividingProgress) + wallPad * 0.6;
+    const outerRx = rx + Math.max(3.5, r * 0.45);
+    const outerRy = ry + Math.max(3.2, r * 0.42);
+
+    ctx.save();
+    // Matriz extracelular polimérica (EPS) de exopolisacáridos
+    ctx.fillStyle = `hsla(${hue}, 68%, 52%, 0.15)`;
     ctx.beginPath();
-    ctx.arc(0, 0, r * 1.55, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, outerRx * 1.08, outerRy * 1.08, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    // Fimbrias de adhesión radiales ancladas al sustrato
+    ctx.strokeStyle = `hsla(${hue}, 75%, 68%, 0.45)`;
+    ctx.lineWidth = 0.9;
+    const fimbriaeCount = 10;
+    ctx.beginPath();
+    for (let i = 0; i < fimbriaeCount; i++) {
+      const a = (i / fimbriaeCount) * Math.PI * 2 + Math.sin(phase * 0.3 + i) * 0.04;
+      const sx = Math.cos(a) * rx * 0.94;
+      const sy = Math.sin(a) * ry * 0.94;
+      const ex = Math.cos(a) * outerRx;
+      const ey = Math.sin(a) * outerRy;
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+    }
+    ctx.stroke();
+
+    // Puntos de adhesina en los extremos de las fimbrias
+    ctx.fillStyle = `hsla(${hue}, 85%, 76%, 0.55)`;
+    ctx.beginPath();
+    for (let i = 0; i < fimbriaeCount; i += 2) {
+      const a = (i / fimbriaeCount) * Math.PI * 2;
+      const ex = Math.cos(a) * outerRx;
+      const ey = Math.sin(a) * outerRy;
+      ctx.moveTo(ex + 1, ey);
+      ctx.arc(ex, ey, 1.0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.restore();
   }
 }

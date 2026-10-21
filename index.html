@@ -1686,6 +1686,71 @@
       color: var(--bio-green-bright);
     }
 
+    .hud-icon-btn {
+      padding: 5px 8px;
+      justify-content: center;
+      min-width: 28px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      letter-spacing: -0.05em;
+    }
+
+    .hud-reticle-icon {
+      width: 15px;
+      height: 15px;
+      display: block;
+      flex-shrink: 0;
+    }
+
+    .hud-stepper {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(30, 41, 59, 0.8);
+      overflow: hidden;
+    }
+
+    .hud-step-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 5px 8px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .hud-step-btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      color: var(--accent);
+    }
+
+    .hud-step-btn:active {
+      background: var(--accent-glow);
+    }
+
+    .hud-stepper-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-main);
+      padding: 4px 6px;
+      border-left: 1px solid var(--border-subtle);
+      border-right: 1px solid var(--border-subtle);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      user-select: none;
+    }
+
     .kpi-pill {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -2779,15 +2844,28 @@
       <div class="top-hud">
         <div class="hud-group">
           <button class="hud-btn dna-btn" id="btnOpenEditorHud">🧬 Editor ADN</button>
-          <button class="hud-btn" id="btnPause">Pausar</button>
-          <button class="hud-btn active" data-speed="1">1x</button>
-          <button class="hud-btn" data-speed="2">2x</button>
-          <button class="hud-btn" data-speed="4">4x</button>
-          <button class="hud-btn" id="btnFeed">+ Sustrato</button>
-          <button class="hud-btn" id="btnRemoveSubstrate">− Sustrato</button>
-          <button class="hud-btn" id="btnDecreaseLightRadius">− Radio luz</button>
-          <button class="hud-btn" id="btnIncreaseLightRadius">+ Radio luz</button>
-          <button class="hud-btn" id="btnResetCam">Centrar Vista</button>
+          <button class="hud-btn hud-icon-btn" id="btnPause" title="Pausar" aria-label="Pausar">||</button>
+          <button class="hud-btn active" id="btnSpeed" data-speed="1" title="Cambiar velocidad (1x / 2x / 4x)">1x</button>
+          <div class="hud-stepper" role="group">
+            <button type="button" class="hud-step-btn" id="btnRemoveSubstrate" title="Retirar sustrato" aria-label="Retirar sustrato">−</button>
+            <span class="hud-stepper-label" id="lblHudSubstrate"><img class="ui-icon ui-icon-xs" src="icons/pipette.png" alt="" /><span>Sustrato</span></span>
+            <button type="button" class="hud-step-btn" id="btnFeed" title="Añadir sustrato" aria-label="Añadir sustrato">+</button>
+          </div>
+          <div class="hud-stepper" role="group">
+            <button type="button" class="hud-step-btn" id="btnDecreaseLightRadius" title="Reducir radio de luz" aria-label="Reducir radio de luz">−</button>
+            <span class="hud-stepper-label" id="lblHudLight">Luz</span>
+            <button type="button" class="hud-step-btn" id="btnIncreaseLightRadius" title="Aumentar radio de luz" aria-label="Aumentar radio de luz">+</button>
+          </div>
+          <button class="hud-btn hud-icon-btn" id="btnResetCam" title="Centrar Vista" aria-label="Centrar Vista">
+            <svg class="hud-reticle-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="7" />
+              <line x1="12" y1="2" x2="12" y2="6" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="6" y2="12" />
+              <line x1="18" y1="12" x2="22" y2="12" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
           <button class="hud-btn" id="btnToggleDetail" title="Alternar entre detalle automático, bajo y alto">Detalle: Auto</button>
         </div>
 

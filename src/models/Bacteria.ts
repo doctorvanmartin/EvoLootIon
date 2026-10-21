@@ -18,6 +18,11 @@ export class Bacteria {
   public vx: number = 0;
   public vy: number = 0;
   public angle: number = Math.random() * Math.PI * 2;
+  public wanderAngle: number = this.angle;
+  public tumbleTimer: number = 0.5 + Math.random() * 1.2;
+  public lockedTargetX: number = 0;
+  public lockedTargetY: number = 0;
+  public hasLockedTarget: boolean = false;
   public energy: number;
   public age: number = 0;
   public isDead: boolean = false;
@@ -48,13 +53,62 @@ export class Bacteria {
     this.divisionCooldown = initialDivisionCooldown;
   }
 
-  public get radius(): number {
-    return this.dna.stats.size;
-  }
-
   public get effectiveSplitEnergy(): number {
     const suctionPenalty = this.dna.traits.adaptation === 'suction_pore' ? 1.15 : 1.0;
     return this.dna.stats.splitEnergy * suctionPenalty;
+  }
+
+  /**
+   * Factor de crecimiento ontogenético según las reservas de energía actuales y la plasticidad
+   * anabólica de su metabolismo: < 1.0 en ayunas / recién dividida, 1.0 en equilibrio (62% E)
+   * y > 1.0 cuando se hincha de biomasa antes de la fisión.
+   */
+  public get growthScale(): number {
+    const range = DNA.getMetabolicGrowthRange(this.dna.traits.metabolism);
+    const eq = SimConfig.GROWTH_EQUILIBRIUM_RATIO;
+    const ratio = Math.max(
+      0,
+      Math.min(1.2, this.energy / Math.max(1, this.effectiveSplitEnergy))
+    );
+    if (ratio <= eq) {
+      const t = ratio / eq;
+      return range.min + (1.0 - range.min) * t;
+    }
+    const t = Math.min(1, (ratio - eq) / (1.0 - eq));
+    return 1.0 + (range.max - 1.0) * t;
+  }
+
+  public get radius(): number {
+    return this.dna.stats.size * this.growthScale;
+  }
+
+  /**
+   * Gasto metabólico basal instantáneo (ATP/s): el término superficial/volumétrico (Kleiber)
+   * escala cuadráticamente con el crecimiento real de la célula, mientras que la armadura,
+   * sensores y adaptaciones mantienen su coste estructural base.
+   */
+  public get currentBasalMetabolism(): number {
+    const scale = this.growthScale;
+    const sizeRatio = this.dna.stats.size / 8.0;
+    const wallMultiplier =
+      this.dna.traits.wall === 'gram_positive'
+        ? 1.32
+        : this.dna.traits.wall === 's_layer'
+          ? 1.24
+          : this.dna.traits.wall === 'capsule'
+            ? 1.18
+            : 1.0;
+    const baseCellTerm = 0.95 * (sizeRatio ** 2) * wallMultiplier;
+    const fixedStructuralCost = Math.max(0, this.dna.stats.basalMetabolism - baseCellTerm);
+    return baseCellTerm * (scale ** 2) + fixedStructuralCost;
+  }
+
+  /**
+   * Coeficiente de arrastre hidrodinámico instantáneo (Ley de Stokes a bajo Reynolds):
+   * crece linealmente con el radio actual de la bacteria.
+   */
+  public get currentDragFactor(): number {
+    return this.dna.stats.dragFactor * this.growthScale;
   }
 
   public update(
@@ -135,14 +189,17 @@ export class Bacteria {
       Bacteria.neighborBacteriaBuf
     );
 
-    // 3. Quimiotaxis / Fototaxis y locomoción
-    this.computeLocomotion(nearbyNutrients, nearbyBacteria, bounds);
+    // 3. Quimiotaxis / Fototaxis y locomoción fluida
+    this.computeLocomotion(dt, nearbyNutrients, nearbyBacteria, bounds);
 
     // Si está en pleno proceso de división, reduce su velocidad de desplazamiento
     if (this.dividingProgress > 0) {
       this.vx *= 0.42;
       this.vy *= 0.42;
     }
+
+    // 3.b Repulsión estérica suave y resolución de colisiones cuerpo a cuerpo
+    this.resolveStericCollisions(dt, nearbyBacteria);
 
     this.x += this.vx * dt;
     this.y += this.vy * dt;
@@ -151,9 +208,9 @@ export class Bacteria {
     const currentSpeed = Math.hypot(this.vx, this.vy) / SimConfig.MOVEMENT_SPEED_FACTOR;
     this.animPhase += dt * (1 + currentSpeed * 1.25);
 
-    // 4. Balance energético (Ingreso vs Gasto)
+    // 4. Balance energético (Ingreso vs Gasto: escala con el tamaño ontogenético actual)
     let energyDrain =
-      this.dna.stats.basalMetabolism + this.dna.stats.dragFactor * (currentSpeed ** 2);
+      this.currentBasalMetabolism + this.currentDragFactor * (currentSpeed ** 2);
 
     // Guerra química, Quorum Sensing y Sideróforos
     if (this.dna.traits.interaction === 'siderophores') {
@@ -261,13 +318,22 @@ export class Bacteria {
   }
 
   private computeLocomotion(
+    dt: number,
     nutrients: Nutrient[],
     bacteria: Bacteria[],
     bounds: WorldEnvironment
   ): void {
-    if (this.dna.traits.motility === 'sessile' || this.dna.traits.motility === 'nonmotile') {
+    if (this.dna.traits.motility === 'sessile') {
       this.vx = 0;
       this.vy = 0;
+      return;
+    }
+
+    if (this.dna.traits.motility === 'nonmotile') {
+      // Las bacterias no móviles amortiguan suavemente cualquier empuje por contacto
+      const damp = Math.exp(-8 * dt);
+      this.vx *= damp;
+      this.vy *= damp;
       return;
     }
 
@@ -276,7 +342,7 @@ export class Bacteria {
     let minDistSq = Infinity;
 
     if (this.dna.traits.metabolism === 'predator') {
-      // Las predadoras buscan presas vivas de distinto linaje (no esporuladas ni muriendo)
+      // Las predadoras buscan presas vivas de distinto linaje (no esporuladas ni muriendo) con histéresis
       for (let i = 0; i < bacteria.length; i++) {
         const prey = bacteria[i];
         if (
@@ -288,20 +354,30 @@ export class Bacteria {
           continue;
         }
         const dSq = (prey.x - this.x) ** 2 + (prey.y - this.y) ** 2;
-        if (dSq < minDistSq) {
-          minDistSq = dSq;
+        const headingDot =
+          Math.cos(this.angle) * (prey.x - this.x) +
+          Math.sin(this.angle) * (prey.y - this.y);
+        const directionalBias = headingDot > 0 ? 0.78 : 1.0;
+        const effectiveDSq = dSq * directionalBias;
+        if (effectiveDSq < minDistSq) {
+          minDistSq = effectiveDSq;
           targetX = prey.x;
           targetY = prey.y;
         }
       }
     } else if (this.dna.traits.metabolism !== 'photosynthetic') {
-      // Las bacterias heterótrofas siguen el gradiente de nutrientes
+      // Las bacterias heterótrofas siguen el gradiente de nutrientes con preferencia frontal para no oscilar
       for (let i = 0; i < nutrients.length; i++) {
         const n = nutrients[i];
         if (n.isDead) continue;
-        const dSq = (n.x - this.x) ** 2 + (n.y - this.y) ** 2;
-        if (dSq < minDistSq) {
-          minDistSq = dSq;
+        const dx = n.x - this.x;
+        const dy = n.y - this.y;
+        const dSq = dx * dx + dy * dy;
+        const headingDot = Math.cos(this.angle) * dx + Math.sin(this.angle) * dy;
+        const directionalBias = headingDot > 0 ? 0.75 : 1.05;
+        const effectiveDSq = dSq * directionalBias;
+        if (effectiveDSq < minDistSq) {
+          minDistSq = effectiveDSq;
           targetX = n.x;
           targetY = n.y;
         }
@@ -310,45 +386,144 @@ export class Bacteria {
       // Fototaxis: las fotosintéticas móviles perciben el gradiente hacia el epicentro de luz
       const distLight = Math.hypot(bounds.lightX - this.x, bounds.lightY - this.y);
       const maxSenseLight = bounds.lightRadius * 1.6 + this.dna.stats.perceptionRadius;
-      if (distLight > bounds.lightRadius * 0.45 && distLight <= maxSenseLight) {
-        const desired = Math.atan2(bounds.lightY - this.y, bounds.lightX - this.x);
-        this.angle += Math.sin(desired - this.angle) * 0.12;
+      if (distLight > bounds.lightRadius * 0.42 && distLight <= maxSenseLight) {
+        minDistSq = distLight * distLight;
+        targetX = bounds.lightX;
+        targetY = bounds.lightY;
       }
     }
 
+    const turnRate =
+      this.dna.traits.motility === 'ciliated'
+        ? 4.2
+        : this.dna.traits.motility === 'spirochete'
+          ? 5.4
+          : 6.8;
+
     if (minDistSq < Infinity) {
-      const desiredAngle = Math.atan2(targetY - this.y, targetX - this.x);
-      // Ciliadas y espiroquetas maniobran con giro progresivo; flageladas orientan directo por quimiotaxis
-      if (this.dna.traits.motility === 'ciliated') {
-        const diff = Math.atan2(
-          Math.sin(desiredAngle - this.angle),
-          Math.cos(desiredAngle - this.angle)
-        );
-        this.angle += diff * 0.25;
-      } else if (this.dna.traits.motility === 'spirochete') {
-        const diff = Math.atan2(
-          Math.sin(desiredAngle - this.angle),
-          Math.cos(desiredAngle - this.angle)
-        );
-        this.angle += diff * 0.35 + Math.sin(this.animPhase * 2.2) * 0.08;
-      } else {
-        this.angle = desiredAngle;
+      let desiredAngle = Math.atan2(targetY - this.y, targetX - this.x);
+      if (this.dna.traits.motility === 'spirochete') {
+        desiredAngle += Math.sin(this.animPhase * 1.8) * 0.14;
       }
+      const diff = Math.atan2(
+        Math.sin(desiredAngle - this.angle),
+        Math.cos(desiredAngle - this.angle)
+      );
+      this.angle += diff * Math.min(1, turnRate * dt);
+      this.wanderAngle = this.angle;
     } else {
-      // Run & tumble browniano
-      const tumbleAmplitude =
-        this.dna.traits.motility === 'ciliated'
-          ? 0.18
-          : this.dna.traits.motility === 'spirochete'
-            ? 0.26
-            : 0.34;
-      this.angle += (Math.random() - 0.5) * tumbleAmplitude;
+      // Run & Tumble fluido dependiente de dt: corridas rectas suaves con reorientaciones periódicas
+      this.tumbleTimer -= dt;
+      if (this.tumbleTimer <= 0) {
+        const tumbleInterval =
+          this.dna.traits.motility === 'ciliated'
+            ? 1.4 + Math.random() * 1.4
+            : this.dna.traits.motility === 'spirochete'
+              ? 1.0 + Math.random() * 1.1
+              : 0.75 + Math.random() * 1.15;
+        this.tumbleTimer = tumbleInterval;
+        const maxTurn =
+          this.dna.traits.motility === 'ciliated'
+            ? 0.85
+            : this.dna.traits.motility === 'spirochete'
+              ? 1.15
+              : 1.45;
+        this.wanderAngle = this.angle + (Math.random() - 0.5) * 2 * maxTurn;
+      }
+
+      // Deriva rotacional browniana continua pero suave y proporcional a dt
+      this.wanderAngle += Math.sin(this.animPhase * 0.7 + this.id * 1.7) * 0.35 * dt;
+      const diff = Math.atan2(
+        Math.sin(this.wanderAngle - this.angle),
+        Math.cos(this.wanderAngle - this.angle)
+      );
+      this.angle += diff * Math.min(1, (turnRate * 0.72) * dt);
     }
 
     const effectiveSpeed = this.dna.getEffectiveMaxSpeed();
     const speedPx = effectiveSpeed * SimConfig.MOVEMENT_SPEED_FACTOR;
-    this.vx = Math.cos(this.angle) * speedPx;
-    this.vy = Math.sin(this.angle) * speedPx;
+    const targetVx = Math.cos(this.angle) * speedPx;
+    const targetVy = Math.sin(this.angle) * speedPx;
+    const inertiaBlend = Math.min(1, 10 * dt);
+    this.vx += (targetVx - this.vx) * inertiaBlend;
+    this.vy += (targetVy - this.vy) * inertiaBlend;
+  }
+
+  /**
+   * Evita que las bacterias se atraviesen o se apilen unas encima de otras aplicando
+   * desviación suave de dirección y separación estérica elástica entre somas cercanos.
+   */
+  private resolveStericCollisions(dt: number, neighbors: Bacteria[]): void {
+    const isSessile = this.dna.traits.motility === 'sessile';
+    let steerX = 0;
+    let steerY = 0;
+
+    for (let i = 0; i < neighbors.length; i++) {
+      const other = neighbors[i];
+      if (other === this || other.isDead || other.isDying) continue;
+
+      let dx = this.x - other.x;
+      let dy = this.y - other.y;
+      let dSq = dx * dx + dy * dy;
+
+      const minSep = (this.radius + other.radius) * 1.12;
+      const softZone = minSep * 1.32;
+
+      if (dSq >= softZone * softZone) continue;
+
+      if (dSq < 0.0001) {
+        const fallbackAngle = ((this.id * 2.39996) % (Math.PI * 2));
+        dx = Math.cos(fallbackAngle);
+        dy = Math.sin(fallbackAngle);
+        dSq = 1;
+      }
+
+      const dist = Math.sqrt(dSq);
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      // Desviación suave de rumbo antes del choque frontal
+      if (!isSessile && dist < softZone) {
+        const weight = (softZone - dist) / softZone;
+        steerX += nx * weight;
+        steerY += ny * weight;
+      }
+
+      // Separación física directa si los somas se solapan
+      if (dist < minSep) {
+        const overlap = minSep - dist;
+        const otherFixed = other.dna.traits.motility === 'sessile' || other.isSpore;
+        const thisFixed = isSessile || this.isSpore;
+
+        if (!thisFixed) {
+          const share = otherFixed ? 0.9 : 0.5;
+          const push = overlap * share * Math.min(1, dt * 18);
+          this.x += nx * push;
+          this.y += ny * push;
+        }
+        if (!otherFixed && other.id > this.id) {
+          const share = thisFixed ? 0.9 : 0.5;
+          const push = overlap * share * Math.min(1, dt * 18);
+          other.x -= nx * push;
+          other.y -= ny * push;
+        }
+      }
+    }
+
+    if (
+      !isSessile &&
+      this.dna.traits.motility !== 'nonmotile' &&
+      (steerX !== 0 || steerY !== 0)
+    ) {
+      // Si es predadora persiguiendo una presa, aplica menor evasión para poder morder
+      const avoidGain = this.dna.traits.metabolism === 'predator' ? 1.4 : 2.8;
+      const avoidAngle = Math.atan2(steerY, steerX);
+      const diff = Math.atan2(
+        Math.sin(avoidAngle - this.angle),
+        Math.cos(avoidAngle - this.angle)
+      );
+      this.angle += diff * Math.min(0.45, avoidGain * dt);
+    }
   }
 
   private applySiderophorePull(nutrients: Nutrient[], dt: number): void {

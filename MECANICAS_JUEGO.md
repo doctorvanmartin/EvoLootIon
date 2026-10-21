@@ -66,7 +66,7 @@ Regula cómo se divide la célula al alcanzar el umbral `splitEnergy` (mediante 
 * **Gemación Polar (`budding`):**
   * División asimétrica: la célula madre conserva el $65\%$ de la energía neta y emite una yema hija con el $35\%$.
 * **Capacidad de Esporulación (`sporulation`):**
-  * Ante hambruna crítica ($E < 12$), la bacteria se transforma en una **endospora** mineralizada inerte ($5\%$ de consumo basal, inmune a predación y $-85\%$ daño por toxinas) hasta recuperar reservas ($E > 26.4$).
+  * Ante hambruna crítica ($E < 12$), la bacteria se transforma en una **endospora** mineralizada inerte ($5\%$ de consumo basal, inmune a predación y $-85\%$ daño por toxinas) hasta recuperar reservas ($E > 26.4$). En nivel de detalle alto, las células vegetativas muestran una pre-espora polar en maduración y las endosporas latentes exhiben su estructura concéntrica (exosporio, cubierta laminar, córtex y núcleo birrefringente de dipicolinato de calcio).
 * **Conjugación / Pili Sexual (`conjugation`):**
   * Tiende puentes citoplasmáticos con bacterias aliadas cercanas, regenerando $+0.35\text{ ATP/s}$ por sinergia metabólica y dividiéndose en proporción $55\% / 45\%$.
 
@@ -130,23 +130,33 @@ Si en cualquier instante $E \le 0$, la bacteria sufre **lisis celular**: muere y
 
    La velocidad lineal en píxeles por segundo a velocidad de simulación `1x` viene dada por $v_{\text{px}} = v_{\max} \cdot 15$ (`MOVEMENT_SPEED_FACTOR = 15`), calibrada para una observación microscópica pausada y legible.
 
-### 2.2. Tasas de Gasto ($\dot{E}_{\text{out}}$) y Trade-offs de Pareto
+### 2.2. Tasas de Gasto ($\dot{E}_{\text{out}}$), Crecimiento Ontogenético y Trade-offs de Pareto
 
-Para impedir que la evolución produzca un "super-organismo" sin debilidades, el método `DNA.recalculateDerivedCosts()` recalcula automáticamente los costes pasivos y activos cada vez que nace o muta una bacteria:
+Para impedir que la evolución produzca un "super-organismo" sin debilidades, el método `DNA.recalculateDerivedCosts()` recalcula los costes base del genoma, mientras que `Bacteria` escala en tiempo real su radio y gasto energético a medida que ingiere alimento y acumula reservas de ATP antes de dividirse:
 
-1. **Metabolismo Basal y Mantenimiento de Pared (Escalado de Kleiber):**
+1. **Crecimiento Ontogenético y Plasticidad Trófica (`growthScale`):**
 
-   $$\dot{E}_{\text{basal}} = 0.95 \cdot \left(\frac{r}{8}\right)^2 \cdot M_{\text{wall}} + k_{\text{armor}}\cdot\text{Armor} + C_{\text{adapt}} + 0.30\cdot\left(\frac{P}{160}\right)^2$$
+   El radio efectivo de cada bacteria ($r_{\text{actual}} = r_{\text{genético}} \cdot \gamma$) varía dinámicamente en función de su llenura energética $E / E_{\text{split}}$ respecto al punto de equilibrio inicial ($62\%$), con una elasticidad anabólica $[\gamma_{\min}, \gamma_{\max}]$ gobernada por su **locus de metabolismo**:
+   * **Predadora (`PRE`):** $0.72\times \to 1.42\times$ (alta hipertrofia tras cazar presas).
+   * **Saprófita (`SAP`):** $0.75\times \to 1.36\times$ (gran expansión al digerir detritus orgánico).
+   * **Fermentadora (`FER`):** $0.74\times \to 1.34\times$ (hinchazón rápida en festines de sustrato).
+   * **Quimioheterótrofa (`HET`):** $0.78\times \to 1.28\times$ (plasticidad heterótrofa estándar).
+   * **Fotosintética (`PHO`):** $0.84\times \to 1.20\times$ (crecimiento moderado bajo la luz).
+   * **Quimiolitótrofa (`QUI`):** $0.94\times \to 1.06\times$ (pared rígida y gasto homeostático casi constante).
 
-   Crecer en tamaño ($r$) encarece cuadráticamente el mantenimiento celular; acumular armadura y mantener adaptaciones o receptores sensoriales también impone un drenaje constante. El coste de receptores crece cuadráticamente con el alcance $P$ y alcanza $0.30\text{ ATP/s}$ a $160\text{ px}$ (`SENSOR_MAINTENANCE_MAX_COST`); $k_{\text{armor}}=0.06$ para la capa S y $0.08$ para las demás paredes.
+2. **Metabolismo Basal y Mantenimiento de Pared (Escalado de Kleiber dinámico):**
 
-2. **Arrastre Viscoso Locomotor (Bajo Número de Reynolds):**
+   $$\dot{E}_{\text{basal}}(\gamma) = 0.95 \cdot \left(\frac{r_{\text{genético}} \cdot \gamma}{8}\right)^2 \cdot M_{\text{wall}} + k_{\text{armor}}\cdot\text{Armor} + C_{\text{adapt}} + 0.30\cdot\left(\frac{P}{160}\right)^2$$
 
-   $$c_{\text{drag}} = k_{\text{mot}} \cdot \left(\frac{r}{8}\right) \cdot v_{\max}^{1.8}, \qquad \dot{E}_{\text{mov}} = c_{\text{drag}} \cdot v^2$$
+   Crecer en tamaño al comer ($r_{\text{genético}} \cdot \gamma$) amplía el radio de contacto para absorber nutrientes o cazar, pero encarece cuadráticamente el mantenimiento celular en tiempo real (`currentBasalMetabolism`). Acumular armadura y mantener adaptaciones o receptores sensoriales también impone un drenaje constante ($k_{\text{armor}}=0.06$ para la capa S y $0.08$ para las demás paredes).
 
-3. **Síntesis de Bacteriocinas:**
+3. **Arrastre Viscoso Locomotor (Bajo Número de Reynolds dinámico):**
 
-   $$\dot{E}_{\text{tox}} = 0.22 \cdot \text{ToxinPower} \quad (\text{solo cuando la emisión está activa})$$
+   $$c_{\text{drag}}(\gamma) = k_{\text{mot}} \cdot \left(\frac{r_{\text{genético}} \cdot \gamma}{8}\right) \cdot v_{\max}^{1.75}, \qquad \dot{E}_{\text{mov}} = c_{\text{drag}}(\gamma) \cdot v^2$$
+
+4. **Síntesis de Bacteriocinas:**
+
+   $$\dot{E}_{\text{tox}} = 0.20 \cdot \text{ToxinPower} \quad (\text{solo cuando la emisión está activa})$$
 
 ### 2.3. Difusión Gaussiana del Daño Químico
 
@@ -175,7 +185,8 @@ Desde el Editor Genómico, el jugador puede seleccionar:
 
 * Al cargar la aplicación se sortean las categorías biológicas y los valores genéticos cuantitativos de los deslizadores; el jugador puede modificarlos antes de inocular la cepa. La cantidad de ejemplares iniciales y de cepas rivales mantiene sus valores predeterminados (`6` y `3`).
 * El **número de ejemplares iniciales por cepa** se puede ajustar entre `3` y `10` individuos (`INITIAL_COLONY_SIZE = 6` por defecto). Como máximo, una cepa sésil aparece en la partida; duplica ese total y se reparte en dos focos separados: con 6 ejemplares seleccionados, empieza con 12, en dos grupos de 6. Las mutaciones de motilidad no crean nuevos linajes sésiles.
-* Los ejemplares sésiles se colocan aleatoriamente con separación mínima entre sus centros para evitar solapamientos y evitar formaciones geométricas regulares.
+* Los ejemplares de todas las colonias (tanto móviles como sésiles) se inoculan mediante muestreo con rechazo para garantizar una separación mínima entre sus centros y evitar que aparezcan apilados o solapados al inicio de la partida. Durante la simulación, las bacterias presentan **repulsión estérica suave y evasión de colisiones**, evitando atravesarse unas a otras, y su locomoción sigue una cinética fluida dependiente de $\Delta t$ (*Run & Tumble* con temporizador, histéresis direccional hacia nutrientes/presas e inercia de giro).
+* El sustrato comienza con `60` partículas (`INITIAL_NUTRIENTS`) en seis focos. Después aparecen grupos de cinco partículas cada `4 s`, concentrados en áreas de radio `44 px`; los focos nuevos se separan de los recientes siempre que el espacio lo permite. En nivel de detalle alto, las partículas de sustrato exhiben **morfologías diversas** (cristales hexagonales, romboides minerales, tríadas de aminoácidos, esquirlas minerales y gránulos de glucosa) y los **cadáveres bacterianos** se representan como restos celulares lisados (membrana rota colapsada del matiz de la bacteria fallecida, gránulos coagulados y hebras de cromatina liberadas).
 * El **número de poblaciones rivales** entre `0` y `8` (siendo **3 poblaciones rivales** el valor por defecto, además de la cepa del jugador).
 * Además de las rivales generadas al azar, se pueden incluir perfiles fijos de *Salmonella enterica* serovar Typhimurium, *Helicobacter pylori*, *Escherichia coli* K-12, *Staphylococcus aureus*, *Pseudomonas aeruginosa* PAO1 y *Bacillus subtilis* 168. Cada casilla marcada añade una población y usa el mismo número de ejemplares por colonia. Todas aparecen desmarcadas inicialmente.
 
@@ -186,7 +197,8 @@ Desde el Editor Genómico, el jugador puede seleccionar:
 
 * Las colonias se inoculan distribuidas de forma equidistante en un anillo elíptico alrededor de la placa de Petri; los focos adicionales sésiles se colocan en posiciones aleatorias separadas.
 * El sustrato comienza con `60` partículas (`INITIAL_NUTRIENTS`) en seis focos. Después aparecen grupos de cinco partículas cada `4 s`, concentrados en áreas de radio `44 px`; los focos nuevos se separan de los recientes siempre que el espacio lo permite.
-* Los controles de la simulación permiten añadir o retirar `35` partículas de sustrato y ampliar o reducir el radio de luz en pasos de `40 px`.
+* Los controles de la simulación permiten añadir o retirar `35` partículas de sustrato y ampliar o reducir el radio de luz en pasos de `40 px`. Al pulsar el botón de retirar sustrato (`- Sustrato`), se desconecta la introducción automática de sustrato hasta que el jugador vuelva a pulsar el botón de añadir (`+ Sustrato`) o inicie un nuevo cultivo.
+* Si en algún momento se extinguen todas las bacterias y endosporas de la placa (`totalBacteria === 0`), la simulación se detiene automáticamente.
 * La **división celular** y la **lisis** tienen transiciones graduales visibles (`3.6s` y `1.6s`). Después de dividirse, madre e hija requieren al menos `3.6s` de crecimiento activo antes de poder iniciar otra división.
 * Las poblaciones rivales aleatorias se generan en cada partida (`DNA.createRandomRival`), con rasgos y estadísticas variados. Los perfiles de especies conocidas usan rasgos cualitativos y morfología de referencia fijos; sus estadísticas continuas están normalizadas para el balance del juego, no son mediciones directas de velocidades o metabolismo reales. Las generaciones descendientes pueden evolucionar y conservan el nombre de su especie de referencia.
 * La simulación no modela oxígeno, pH, huésped ni todos los mecanismos de virulencia. Por ejemplo, la ureasa de *H. pylori* y el entorno ácido gástrico no tienen efecto mecánico; la interacción por quorum sensing de *P. aeruginosa* es una aproximación del juego, no una simulación literal de sus factores de virulencia.

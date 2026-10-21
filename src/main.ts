@@ -104,6 +104,9 @@ const activeStrainDna = document.getElementById('activeStrainDna')!;
 
 const btnDeploy = document.getElementById('btnDeploy')!;
 const btnPause = document.getElementById('btnPause')!;
+const btnSpeed = document.getElementById('btnSpeed') as HTMLButtonElement;
+const lblHudSubstrate = document.getElementById('lblHudSubstrate')!;
+const lblHudLight = document.getElementById('lblHudLight')!;
 const btnFeed = document.getElementById('btnFeed')!;
 const btnRemoveSubstrate = document.getElementById('btnRemoveSubstrate')!;
 const btnDecreaseLightRadius = document.getElementById('btnDecreaseLightRadius')!;
@@ -571,11 +574,13 @@ function updateDesignerReadouts(): void {
   const ui = i18n.getBundle().ui;
   const dna = buildUserDNA();
   previewDummy.dna = dna;
+  previewDummy.energy = dna.stats.splitEnergy * SimConfig.GROWTH_EQUILIBRIUM_RATIO;
 
   const effSpeed = dna.getEffectiveMaxSpeed();
   const loci = dna.getCategoryLoci();
+  const growthRange = DNA.getMetabolicGrowthRange(dna.traits.metabolism);
 
-  valSize.textContent = `${dna.stats.size.toFixed(1)} px`;
+  valSize.textContent = `${dna.stats.size.toFixed(1)} px (${(dna.stats.size * growthRange.min).toFixed(1)}–${(dna.stats.size * growthRange.max).toFixed(1)})`;
 
   if (dna.traits.motility === 'sessile') {
     valSpeed.textContent = ui.sessileZero;
@@ -901,6 +906,7 @@ function handleTelemetry(telemetry: SimulationTelemetry): void {
   kpiGen.textContent = String(telemetry.maxGeneration);
   kpiFps.textContent = String(telemetry.fps);
   lblSimTime.textContent = `${telemetry.elapsedTime.toFixed(1)}s`;
+  syncPauseButtonUI(telemetry.isPaused);
 
   renderLineageList(telemetry);
   renderPopulationChart(telemetry);
@@ -970,7 +976,7 @@ function updateInspectorView(): void {
       ? `${interEntry.inspectorLabel} (${adaptEntry.inspectorLabel})`
       : interEntry.inspectorLabel;
   inspArmor.textContent = b.dna.stats.armor.toFixed(1);
-  inspBasal.textContent = `${b.dna.stats.basalMetabolism.toFixed(2)}/s`;
+  inspBasal.textContent = `${b.currentBasalMetabolism.toFixed(2)}/s (${Math.round(b.growthScale * 100)}%)`;
   inspSpeed.textContent = b.dna.getEffectiveMaxSpeed().toFixed(1);
 }
 
@@ -1147,7 +1153,10 @@ customRivalsList.addEventListener('click', (e) => {
 // --- Flujo del Paso Previo (Editor <-> Placa de Cultivo) ---
 function syncPauseButtonUI(paused: boolean): void {
   const ui = i18n.getBundle().ui;
-  btnPause.textContent = paused ? ui.hud.btnResume : ui.hud.btnPause;
+  const label = paused ? ui.hud.btnResume : ui.hud.btnPause;
+  btnPause.textContent = paused ? '▶' : '||';
+  btnPause.title = label;
+  btnPause.setAttribute('aria-label', label);
   btnPause.classList.toggle('active', paused);
 }
 
@@ -1423,16 +1432,25 @@ function applyTranslations(): void {
 
   setElementWithIcon(btnOpenEditorHud, 'dna-helix.png', ui.hud.btnEditorDna, 'ui-icon ui-icon-xs');
   syncPauseButtonUI(btnPause.classList.contains('active'));
-  setElementWithIcon(btnFeed, 'pipette.png', ui.hud.btnFeed, 'ui-icon ui-icon-xs');
+  btnSpeed.title = ui.hud.btnSpeedTitle;
+  btnSpeed.setAttribute('aria-label', ui.hud.btnSpeedTitle);
   setElementWithIcon(
-    btnRemoveSubstrate,
+    lblHudSubstrate,
     'pipette.png',
-    ui.hud.btnRemoveSubstrate,
+    age.substrateLabel,
     'ui-icon ui-icon-xs'
   );
-  btnDecreaseLightRadius.textContent = ui.hud.btnDecreaseLightRadius;
-  btnIncreaseLightRadius.textContent = ui.hud.btnIncreaseLightRadius;
-  btnResetCam.textContent = ui.hud.btnResetCam;
+  lblHudLight.textContent = ui.hud.lightLabel;
+  btnFeed.title = ui.hud.btnFeed;
+  btnFeed.setAttribute('aria-label', ui.hud.btnFeed);
+  btnRemoveSubstrate.title = ui.hud.btnRemoveSubstrate;
+  btnRemoveSubstrate.setAttribute('aria-label', ui.hud.btnRemoveSubstrate);
+  btnDecreaseLightRadius.title = ui.hud.btnDecreaseLightRadius;
+  btnDecreaseLightRadius.setAttribute('aria-label', ui.hud.btnDecreaseLightRadius);
+  btnIncreaseLightRadius.title = ui.hud.btnIncreaseLightRadius;
+  btnIncreaseLightRadius.setAttribute('aria-label', ui.hud.btnIncreaseLightRadius);
+  btnResetCam.title = ui.hud.btnResetCam;
+  btnResetCam.setAttribute('aria-label', ui.hud.btnResetCam);
   syncDetailButtonUI();
 
   setElementWithIcon(
@@ -1549,16 +1567,19 @@ btnPause.addEventListener('click', () => {
   syncPauseButtonUI(paused);
 });
 
-document.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-speed]').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    engine.setTimeScale(parseFloat(btn.dataset.speed || '1'));
-  });
+const SPEED_STEPS = [1, 2, 4] as const;
+let currentSpeedIdx = 0;
+
+btnSpeed.addEventListener('click', () => {
+  currentSpeedIdx = (currentSpeedIdx + 1) % SPEED_STEPS.length;
+  const nextSpeed = SPEED_STEPS[currentSpeedIdx];
+  btnSpeed.dataset.speed = String(nextSpeed);
+  btnSpeed.textContent = `${nextSpeed}x`;
+  engine.setTimeScale(nextSpeed);
 });
 
 btnFeed.addEventListener('click', () => {
-  engine.spawnNutrient(SimConfig.MANUAL_NUTRIENT_AMOUNT);
+  engine.spawnNutrient(SimConfig.MANUAL_NUTRIENT_AMOUNT, true);
 });
 
 btnRemoveSubstrate.addEventListener('click', () => {

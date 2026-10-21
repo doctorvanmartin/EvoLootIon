@@ -23,6 +23,7 @@ export interface SimulationTelemetry {
   totalNutrients: number;
   maxGeneration: number;
   fps: number;
+  isPaused: boolean;
   lineages: LineageSummary[];
   history: Array<{ time: number; counts: Record<string, number> }>;
 }
@@ -37,6 +38,7 @@ export class SimulationEngine {
   private offspringBuffer: Bacteria[] = [];
   private nutrientClusterCenters: Array<{ x: number; y: number }> = [];
   private nutrientSpawnTimer: number = 0;
+  private autoSubstrateEnabled: boolean = true;
 
   private gridNutrients = new SpatialHashGrid<Nutrient>(SimConfig.CELL_SIZE);
   private gridBacteria = new SpatialHashGrid<Bacteria>(SimConfig.CELL_SIZE);
@@ -120,6 +122,7 @@ export class SimulationEngine {
     this.nutrients.length = 0;
     this.nutrientClusterCenters.length = 0;
     this.nutrientSpawnTimer = 0;
+    this.autoSubstrateEnabled = true;
     this.history.length = 0;
     this.elapsedTime = 0;
     this.historyTimer = 0;
@@ -333,66 +336,62 @@ export class SimulationEngine {
   }
 
   private spawnColonyCluster(cx: number, cy: number, count: number, dna: DNA): void {
-    if (dna.traits.motility === 'sessile') {
-      const minSpacing = dna.stats.size * 3;
-      const minSpacingSq = minSpacing ** 2;
-      let clusterRadius = Math.max(65, minSpacing * Math.sqrt(count) * 0.8);
-      const positions: Array<{ x: number; y: number }> = [];
-      const boundaryMargin = dna.stats.size + 4;
-      for (let i = 0; i < count; i++) {
-        let x = cx;
-        let y = cy;
-        let placed = false;
-        while (!placed) {
-          for (let attempt = 0; attempt < 128; attempt++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.sqrt(Math.random()) * clusterRadius;
-            const candidateX = cx + Math.cos(angle) * distance;
-            const candidateY = cy + Math.sin(angle) * distance;
-            if (
-              candidateX < boundaryMargin ||
-              candidateX > this.worldWidth - boundaryMargin ||
-              candidateY < boundaryMargin ||
-              candidateY > this.worldHeight - boundaryMargin
-            ) {
-              continue;
-            }
-            let clear = true;
-            for (let j = 0; j < positions.length; j++) {
-              const dx = candidateX - positions[j].x;
-              const dy = candidateY - positions[j].y;
-              if (dx * dx + dy * dy < minSpacingSq) {
-                clear = false;
-                break;
-              }
-            }
-            if (clear) {
-              x = candidateX;
-              y = candidateY;
-              placed = true;
+    const isSessile = dna.traits.motility === 'sessile';
+    const spacingFactor = isSessile ? 3.0 : 2.65;
+    const minSpacing = dna.stats.size * spacingFactor;
+    let clusterRadius = Math.max(68, minSpacing * Math.sqrt(count) * 0.88);
+    const boundaryMargin = dna.stats.size + 8;
+
+    for (let i = 0; i < count; i++) {
+      let x = cx;
+      let y = cy;
+      let placed = false;
+      while (!placed) {
+        for (let attempt = 0; attempt < 128; attempt++) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = Math.sqrt(Math.random()) * clusterRadius;
+          const candidateX = cx + Math.cos(angle) * distance;
+          const candidateY = cy + Math.sin(angle) * distance;
+          if (
+            candidateX < boundaryMargin ||
+            candidateX > this.worldWidth - boundaryMargin ||
+            candidateY < boundaryMargin ||
+            candidateY > this.worldHeight - boundaryMargin
+          ) {
+            continue;
+          }
+          let clear = true;
+          for (let j = 0; j < this.bacteria.length; j++) {
+            const existing = this.bacteria[j];
+            const requiredDist =
+              (dna.stats.size + existing.radius) *
+              (isSessile && existing.dna.traits.motility === 'sessile' ? 1.5 : 1.32);
+            const dx = candidateX - existing.x;
+            const dy = candidateY - existing.y;
+            if (dx * dx + dy * dy < requiredDist * requiredDist) {
+              clear = false;
               break;
             }
           }
-          if (!placed) {
-            clusterRadius *= 1.25;
+          if (clear) {
+            x = candidateX;
+            y = candidateY;
+            placed = true;
+            break;
           }
         }
-        positions.push({ x, y });
-        this.bacteria.push(new Bacteria(x, y, dna));
+        if (!placed) {
+          clusterRadius *= 1.25;
+        }
       }
-      return;
-    }
-
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 65;
-      const x = Math.min(this.worldWidth - 20, Math.max(20, cx + Math.cos(a) * r));
-      const y = Math.min(this.worldHeight - 20, Math.max(20, cy + Math.sin(a) * r));
       this.bacteria.push(new Bacteria(x, y, dna));
     }
   }
 
-  public spawnNutrient(count: number = 1): void {
+  public spawnNutrient(count: number = 1, enableAutoSpawn: boolean = false): void {
+    if (enableAutoSpawn) {
+      this.autoSubstrateEnabled = true;
+    }
     const margin = SimConfig.NUTRIENT_CLUSTER_RADIUS + 20;
     let center = { x: margin, y: margin };
     let bestDistanceSq = -1;
@@ -438,6 +437,8 @@ export class SimulationEngine {
   }
 
   public removeNutrients(count: number): void {
+    this.autoSubstrateEnabled = false;
+    this.nutrientSpawnTimer = 0;
     const removeCount = Math.min(Math.max(0, Math.floor(count)), this.nutrients.length);
     for (let i = 0; i < removeCount; i++) {
       const index = Math.floor(Math.random() * this.nutrients.length);
@@ -525,6 +526,7 @@ export class SimulationEngine {
       const stepDt = (dt * this.timeScale) / steps;
       for (let s = 0; s < steps; s++) {
         this.update(stepDt);
+        if (this.isPaused) break;
       }
     }
 
@@ -562,8 +564,8 @@ export class SimulationEngine {
 
     this.offspringBuffer.length = 0;
 
-    // 1. Generación lenta de nuevos focos de sustrato
-    if (this.nutrients.length < SimConfig.MAX_NUTRIENTS) {
+    // 1. Generación lenta de nuevos focos de sustrato (si no ha sido desconectada manualmente con - Sustrato)
+    if (this.autoSubstrateEnabled && this.nutrients.length < SimConfig.MAX_NUTRIENTS) {
       this.nutrientSpawnTimer += dt;
       if (this.nutrientSpawnTimer >= SimConfig.NUTRIENT_CLUSTER_INTERVAL) {
         this.nutrientSpawnTimer -= SimConfig.NUTRIENT_CLUSTER_INTERVAL;
@@ -598,7 +600,9 @@ export class SimulationEngine {
       const b = this.bacteria[i];
       if (b.isDead) {
         const corpseEnergy = b.dna.stats.splitEnergy * SimConfig.CORPSE_ENERGY_RATIO;
-        this.nutrients.push(new Nutrient(b.x, b.y, corpseEnergy, true));
+        this.nutrients.push(
+          new Nutrient(b.x, b.y, corpseEnergy, true, b.dna.hue, b.angle)
+        );
       } else {
         this.bacteria[writeB++] = b;
       }
@@ -620,7 +624,16 @@ export class SimulationEngine {
     }
     this.nutrients.length = writeN;
 
-    // 7. Registro periódico de telemetría (cada 0.4s de tiempo simulado)
+    // 7. Si no quedan bacterias ni endosporas vivas, detener automáticamente la simulación
+    if (this.bacteria.length === 0) {
+      this.isPaused = true;
+      this.historyTimer = 0;
+      this.recordHistorySnapshot();
+      this.emitTelemetry();
+      return;
+    }
+
+    // 8. Registro periódico de telemetría (cada 0.4s de tiempo simulado)
     if (this.historyTimer >= 0.4) {
       this.historyTimer = 0;
       this.recordHistorySnapshot();
@@ -703,6 +716,7 @@ export class SimulationEngine {
       totalNutrients: this.nutrients.length,
       maxGeneration,
       fps: Math.round(this.fps),
+      isPaused: this.isPaused,
       lineages,
       history: this.history,
     });
@@ -782,7 +796,7 @@ export class SimulationEngine {
 
     // 1. Renderizar nutrientes y detritus orgánico
     for (let i = 0; i < this.nutrients.length; i++) {
-      ProceduralRenderer.renderNutrient(this.ctx, this.nutrients[i]);
+      ProceduralRenderer.renderNutrient(this.ctx, this.nutrients[i], lowDetail);
     }
 
     // 2. Renderizar bacterias

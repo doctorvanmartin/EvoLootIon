@@ -65,6 +65,15 @@ export const SimConfig = {
   MACRO_MUTATION_CHANCE: 0.005,     // 0.5% de probabilidad de mutar un rasgo cualitativo
   ADAPTATION_GAIN_CHANCE: 0.01,     // 1% de probabilidad por reproducción de adquirir una adaptación
 
+  // Plasticidad trófica y crecimiento ontogenético (escala min/max de radio según reserva de ATP y metabolismo)
+  GROWTH_EQUILIBRIUM_RATIO: 0.62,   // Fracción de energía inicial (62% de splitEnergy) donde la escala es 1.0x
+  GROWTH_RANGE_PREDATOR: { min: 0.72, max: 1.42 },
+  GROWTH_RANGE_SAPROPHYTE: { min: 0.75, max: 1.36 },
+  GROWTH_RANGE_FERMENTER: { min: 0.74, max: 1.34 },
+  GROWTH_RANGE_CHEMOHETEROTROPH: { min: 0.78, max: 1.28 },
+  GROWTH_RANGE_PHOTOSYNTHETIC: { min: 0.84, max: 1.20 },
+  GROWTH_RANGE_CHEMOLITHOTROPH: { min: 0.94, max: 1.06 },
+
   // Renderizado / Detalle automático
   AUTO_DETAIL_ZOOM_THRESHOLD: 0.65,
   AUTO_DETAIL_POPULATION_THRESHOLD: 450,

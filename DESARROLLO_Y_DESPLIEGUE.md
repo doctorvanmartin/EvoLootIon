@@ -80,12 +80,12 @@ npm run preview
 2. **Simulación, Poblaciones Rivales y Controles del HUD:**
    * Ajusta el control deslizante **Poblaciones Rivales** (de `0` a `8`, por defecto `3`) o pulsa **Inocular Placa de Cultivo** para reiniciar con nuevas cepas rivales generadas al azar y con nombres taxonómicos procedurales.
    * Observa en la placa el **epicentro de luz** (halo iluminado con contorno discontinuo) que aparece en una ubicación aleatoria y se desplaza suavemente.
-   * Prueba los botones de velocidad (`1x`, `2x`, `4x`), **Pausar** y **+ Sustrato**.
+   * Prueba el botón rotatorio de velocidad (`1x` → `2x` → `4x`), el botón de pausa (`||` / `▶`), los selectores compactos `− / +` de **Comida / Sustrato** y **Luz**, y el botón de **Centrar Vista** (icono de mirilla).
    * Haz clic o toca sobre cualquier bacteria en movimiento para abrir el **Inspector de Organismo** en la esquina inferior derecha y observar su nombre procedural, energía, generación y estado (*Vegetativa*, *Toxina Activa* o *Endospora*).
 
 ### 4.2. Validación de rendimiento (Zero-GC y 60 FPS)
 
-1. Pon la velocidad en `4x` y añade sustrato varias veces con **+ Sustrato** hasta superar las 400 bacterias.
+1. Pulsa el botón de velocidad hasta ponerla en `4x` y añade sustrato varias veces con el botón `+` de **Comida / Sustrato** hasta superar las 400 bacterias.
 2. Verifica en el indicador **FPS** del HUD superior que la tasa se mantiene estable en torno a 60 FPS.
 3. Aleja el zoom con la rueda del ratón o alterna entre **Detalle: Auto**, **Detalle: Bajo** y **Detalle: Alto** para comprobar los modos de renderizado.
 
