@@ -32,10 +32,23 @@ export class Bacteria {
   public divisionCooldown: number = 0;
   public beingAttackedTimer: number = 0;
   public isAttackingTimer: number = 0;
+  public combatTargetX: number = 0;
+  public combatTargetY: number = 0;
+  public combatTargetHue: number = 0;
+  public combatAttackerAngle: number = 0;
+  public combatHitType: 'none' | 'bite' | 'toxin' | 'spikes' = 'none';
+  public combatDefenseType: 'none' | 'armor_reflect' | 'capsule_slip' | 'toxin_shield' = 'none';
+  public combatDefenseTimer: number = 0;
   public isSpore: boolean = false;
   public isEmittingToxin: boolean = false;
   public isInfectedByPhage: boolean = false;
   public phageInfectionProgress: number = 0;
+  public phageCrisprProgress: number = 0;
+  public phageCuredTimer: number = 0;
+  public phageAdsorptionAngle: number = 0;
+  public phageDefenseTimer: number = 0;
+  public phageDefenseAngle: number = 0;
+  public diedFromPhageLysis: boolean = false;
   public burstPhagesPending: boolean = false;
   public animPhase: number = Math.random() * 100;
 
@@ -118,10 +131,12 @@ export class Bacteria {
    * Intenta adsorber un bacteriófago T4 sobre los receptores de la envoltura celular.
    * La Capa S cristalina y la Cápsula mucosa enmascaran los receptores reduciendo la probabilidad.
    */
-  public tryAdsorbPhage(): boolean {
+  public tryAdsorbPhage(phageX: number = this.x, phageY: number = this.y): boolean {
     if (this.isDead || this.isDying || this.isSpore || this.isInfectedByPhage) {
       return false;
     }
+    const worldHitAngle = Math.atan2(phageY - this.y, phageX - this.x);
+    const localHitAngle = worldHitAngle - this.angle;
     const wall = this.dna.traits.wall;
     const wallPassChance =
       wall === 's_layer'
@@ -136,10 +151,20 @@ export class Bacteria {
     if (Math.random() <= wallPassChance * spikesFactor * armorFactor) {
       this.isInfectedByPhage = true;
       this.phageInfectionProgress = 0.02;
+      this.phageCrisprProgress = 0;
+      this.phageAdsorptionAngle = localHitAngle;
       this.dividingProgress = 0;
-      this.beingAttackedTimer = 0.35;
+      this.beingAttackedTimer = 0.45;
+      // Impulso de retroceso físico por el anclaje del fago
+      this.vx -= Math.cos(worldHitAngle) * 14;
+      this.vy -= Math.sin(worldHitAngle) * 14;
       return true;
     }
+    // Defensa exitosa de la cubierta celular: destello de bloqueo y sacudida leve
+    this.phageDefenseTimer = 0.45;
+    this.phageDefenseAngle = localHitAngle;
+    this.vx -= Math.cos(worldHitAngle) * 8;
+    this.vy -= Math.sin(worldHitAngle) * 8;
     return false;
   }
 
@@ -151,9 +176,24 @@ export class Bacteria {
   ): Bacteria | null {
     if (this.beingAttackedTimer > 0) {
       this.beingAttackedTimer = Math.max(0, this.beingAttackedTimer - dt);
+      if (this.beingAttackedTimer === 0) {
+        this.combatHitType = 'none';
+      }
     }
     if (this.isAttackingTimer > 0) {
       this.isAttackingTimer = Math.max(0, this.isAttackingTimer - dt);
+    }
+    if (this.combatDefenseTimer > 0) {
+      this.combatDefenseTimer = Math.max(0, this.combatDefenseTimer - dt);
+      if (this.combatDefenseTimer === 0) {
+        this.combatDefenseType = 'none';
+      }
+    }
+    if (this.phageDefenseTimer > 0) {
+      this.phageDefenseTimer = Math.max(0, this.phageDefenseTimer - dt);
+    }
+    if (this.phageCuredTimer > 0) {
+      this.phageCuredTimer = Math.max(0, this.phageCuredTimer - dt);
     }
 
     // Fase de Lisis Celular gradual (muerte progresiva y visible)
@@ -205,20 +245,6 @@ export class Bacteria {
       return null;
     }
 
-    // 1.b Progresión del ciclo lítico intracelular si está infectada por un bacteriófago
-    if (this.isInfectedByPhage) {
-      this.phageInfectionProgress += dt / SimConfig.PHAGE_INCUBATION_TIME;
-      this.energy -= SimConfig.PHAGE_INFECTED_METABOLIC_DRAIN * dt;
-      this.dividingProgress = 0;
-      if (this.phageInfectionProgress >= 1.0) {
-        this.phageInfectionProgress = 1.0;
-        this.isDying = true;
-        this.burstPhagesPending = true;
-        this.isEmittingToxin = false;
-        return null;
-      }
-    }
-
     this.divisionCooldown = Math.max(0, this.divisionCooldown - dt);
 
     // 2. Búsqueda de entorno en O(1) usando buffers preasignados (Zero-GC)
@@ -234,6 +260,82 @@ export class Bacteria {
       this.dna.stats.perceptionRadius,
       Bacteria.neighborBacteriaBuf
     );
+
+    // 2.b Progresión del ciclo lítico intracelular vs. 2ª Línea de Defensa (CRISPR-Cas y Enzimas de Restricción)
+    if (this.isInfectedByPhage) {
+      this.dividingProgress = 0;
+      const energyRatio = Math.max(
+        0,
+        Math.min(1.2, this.energy / Math.max(1, this.effectiveSplitEnergy))
+      );
+
+      // Potencia de defensa intracelular derivada de los atributos reales del genoma:
+      // - Conjugación (CON): transferencia horizontal de cassettes CRISPR entre plásmidos
+      // - Quorum Sensing (QUO) / Bacteriocinas (BAC): señalización inmunitaria y endonucleasas
+      // - Quimiolitotrofia (QUI): estabilidad enzimática extremófila
+      // - Armadura (A) y Toxina/Enzimas (T): dotación proteica y de restricción
+      // - Nivel de ATP actual: las nucleasas Cas requieren energía para escindir el ADN vírico
+      let crisprPower = 0.08;
+      if (this.dna.traits.reproduction === 'conjugation') crisprPower += 0.24;
+      else if (this.dna.traits.reproduction === 'sporulation') crisprPower += 0.08;
+
+      if (this.dna.traits.interaction === 'quorum_sensing') {
+        crisprPower += this.checkQuorumCondition(nearbyBacteria) ? 0.28 : 0.1;
+      } else if (this.dna.traits.interaction === 'bacteriocins') {
+        crisprPower += 0.14 + Math.min(0.18, this.dna.stats.toxinPower * 0.04);
+      } else if (this.dna.traits.interaction === 'siderophores') {
+        crisprPower += 0.08;
+      }
+
+      if (this.dna.traits.metabolism === 'chemolithotroph') crisprPower += 0.14;
+      crisprPower += Math.min(0.22, this.dna.stats.armor * 0.02);
+
+      // Si la bacteria conserva suficiente ATP (> 18%), activa la respuesta CRISPR-Cas / Restricción
+      const canFightIntracellularly = this.energy > SimConfig.SPORULATION_THRESHOLD * 1.3;
+      const effectiveDefenseRate = canFightIntracellularly
+        ? crisprPower * (0.45 + 0.65 * energyRatio) * (0.75 + Math.random() * 0.5)
+        : 0;
+
+      // Mientras las nucleasas cortan el ADN viral, ralentizan el avance del ciclo lítico
+      const viralSlowdown = Math.max(0.35, 1.0 - effectiveDefenseRate * 0.55);
+      this.phageInfectionProgress +=
+        (dt / SimConfig.PHAGE_INCUBATION_TIME) * viralSlowdown;
+      this.phageCrisprProgress = Math.min(
+        1.0,
+        this.phageCrisprProgress +
+          (effectiveDefenseRate / SimConfig.PHAGE_CRISPR_CURE_THRESHOLD) *
+            (dt / SimConfig.PHAGE_INCUBATION_TIME)
+      );
+
+      this.energy -=
+        (SimConfig.PHAGE_INFECTED_METABOLIC_DRAIN +
+          (canFightIntracellularly ? SimConfig.PHAGE_CRISPR_DEFENSE_DRAIN * crisprPower : 0)) *
+        dt;
+
+      // Lucha celular: sacudidas y espasmos flagelares/motores intentando desprender al fago
+      if (this.dna.traits.motility !== 'sessile') {
+        const struggleIntensity = 0.35 + this.phageInfectionProgress * 0.85;
+        this.angle +=
+          Math.sin(this.animPhase * 14 + this.id) * 4.2 * struggleIntensity * dt;
+      }
+
+      // Victoria inmunitaria intracelular: las nucleasas CRISPR-Cas / restricción trituran el ADN del fago
+      // antes de que las cápsides maduren (< 88% del ciclo lítico)
+      if (this.phageCrisprProgress >= 1.0 && this.phageInfectionProgress < 0.88) {
+        this.isInfectedByPhage = false;
+        this.phageInfectionProgress = 0;
+        this.phageCrisprProgress = 0;
+        this.phageCuredTimer = 0.85;
+      } else if (this.phageInfectionProgress >= 1.0) {
+        this.phageInfectionProgress = 1.0;
+        this.phageCrisprProgress = 0;
+        this.isDying = true;
+        this.diedFromPhageLysis = true;
+        this.burstPhagesPending = true;
+        this.isEmittingToxin = false;
+        return null;
+      }
+    }
 
     // 3. Quimiotaxis / Fototaxis y locomoción fluida
     this.computeLocomotion(dt, nearbyNutrients, nearbyBacteria, bounds);
@@ -639,9 +741,20 @@ export class Bacteria {
       const rival = neighbors[i];
       if (rival.isDead || rival.isDying || rival.dna.lineageId === this.dna.lineageId) continue;
       const contactDist = this.radius + rival.radius + 4;
-      if ((rival.x - this.x) ** 2 + (rival.y - this.y) ** 2 <= contactDist ** 2) {
+      const dx = rival.x - this.x;
+      const dy = rival.y - this.y;
+      const dSq = dx * dx + dy * dy;
+      if (dSq <= contactDist ** 2) {
+        const hitAng = Math.atan2(-dy, -dx);
         rival.energy -= 6.5 * dt;
-        rival.beingAttackedTimer = 0.2;
+        rival.beingAttackedTimer = 0.28;
+        rival.combatHitType = 'spikes';
+        rival.combatAttackerAngle = hitAng - rival.angle;
+        // Empuje físico de repulsión por pinchazo en la membrana
+        if (rival.dna.traits.motility !== 'sessile' && !rival.isSpore) {
+          rival.vx += Math.cos(hitAng + Math.PI) * 28 * dt;
+          rival.vy += Math.sin(hitAng + Math.PI) * 28 * dt;
+        }
         if (rival.energy <= 0) {
           rival.isDying = true;
         }
@@ -675,7 +788,9 @@ export class Bacteria {
       const rival = neighbors[i];
       if (rival.isDead || rival.isDying || rival.dna.lineageId === this.dna.lineageId) continue;
 
-      const dSq = (rival.x - this.x) ** 2 + (rival.y - this.y) ** 2;
+      const dx = rival.x - this.x;
+      const dy = rival.y - this.y;
+      const dSq = dx * dx + dy * dy;
       if (dSq <= rSq) {
         // Atenuación gaussiana con la distancia C(d) = C_0 * exp(-d^2 / 2*sigma^2)
         const falloff = Math.exp(-dSq / sigmaSq2);
@@ -686,19 +801,26 @@ export class Bacteria {
         const sporeShield = rival.isSpore ? 0.15 : 1.0;
         const mawVuln = rival.dna.hasAdaptation('giant_maw') ? 0.75 : 1.0;
 
+        const totalChemShield =
+          capsuleShield * gramNegShield * sLayerShield * lithoShield * sporeShield;
         const rawDmg =
           this.dna.stats.toxinPower *
           SimConfig.TOXIN_DAMAGE_FACTOR *
           dt *
           falloff *
-          capsuleShield *
-          gramNegShield *
-          sLayerShield *
-          lithoShield *
-          sporeShield;
+          totalChemShield;
         const netDmg = rawDmg / (1 + rival.dna.stats.armor * mawVuln * 0.35);
         rival.energy -= netDmg;
-        rival.beingAttackedTimer = 0.22;
+        if (rival.combatHitType !== 'bite') {
+          rival.beingAttackedTimer = 0.25;
+          rival.combatHitType = 'toxin';
+          rival.combatAttackerAngle = Math.atan2(-dy, -dx) - rival.angle;
+        }
+        // Si la pared neutraliza gran parte de la toxina (Cápsula, Gram-, Quimiolitótrofa o alta armadura), muestra escudo químico
+        if (totalChemShield <= 0.75 || rival.dna.stats.armor >= 5.5) {
+          rival.combatDefenseType = 'toxin_shield';
+          rival.combatDefenseTimer = 0.26;
+        }
         if (rival.energy <= 0) {
           rival.isDying = true;
         }
@@ -718,8 +840,11 @@ export class Bacteria {
         continue;
       }
 
-      const contactDist = this.radius + prey.radius + 2;
-      if ((prey.x - this.x) ** 2 + (prey.y - this.y) ** 2 <= contactDist ** 2) {
+      const contactDist = this.radius + prey.radius + 3.5;
+      const dx = prey.x - this.x;
+      const dy = prey.y - this.y;
+      const dSq = dx * dx + dy * dy;
+      if (dSq <= contactDist ** 2) {
         // Cápsula mucosa, espiroqueta y bioluminiscencia dificultan ser fagocitada
         const evasionFactor =
           (prey.dna.traits.wall === 'capsule' ? 0.5 : 1.0) *
@@ -735,23 +860,66 @@ export class Bacteria {
           (SimConfig.PREDATION_BITE_DPS * dt * evasionFactor * clawBonus) /
           (1 + prey.dna.stats.armor * preyArmorEff * 0.25);
 
+        const attackAngleWorld = Math.atan2(dy, dx);
         prey.energy -= biteDmg;
-        prey.beingAttackedTimer = 0.28;
-        this.isAttackingTimer = 0.28;
+        prey.beingAttackedTimer = 0.34;
+        prey.combatHitType = 'bite';
+        prey.combatAttackerAngle = attackAngleWorld + Math.PI - prey.angle;
 
-        // Si el predador tiene pinzas, frena a la presa sujetándola
+        this.isAttackingTimer = 0.34;
+        this.combatTargetX = prey.x;
+        this.combatTargetY = prey.y;
+        this.combatTargetHue = prey.dna.hue;
+
+        // Sacudida de forcejeo físico entre depredadora y presa
+        if (prey.dna.traits.motility !== 'sessile') {
+          prey.angle += Math.sin(this.animPhase * 18 + prey.id) * 3.8 * dt;
+        }
+
+        // Si el predador tiene pinzas, frena y atrae a la presa sujetándola hacia sus fauces
         if (this.dna.hasAdaptation('claws')) {
-          prey.vx *= 0.4;
-          prey.vy *= 0.4;
+          prey.vx *= 0.35;
+          prey.vy *= 0.35;
+          if (prey.dna.traits.motility !== 'sessile') {
+            prey.x -= Math.cos(attackAngleWorld) * 14 * dt;
+            prey.y -= Math.sin(attackAngleWorld) * 14 * dt;
+          }
+        } else if (
+          prey.dna.traits.wall === 'capsule' ||
+          prey.dna.traits.motility === 'spirochete' ||
+          prey.dna.hasAdaptation('bioluminescence')
+        ) {
+          // Defensa evasiva (Cápsula resbaladiza, sacacorchos de Espiroqueta o destello Bioluminiscente):
+          // la presa se escurre lateralmente de las fauces del depredador
+          prey.combatDefenseType = 'capsule_slip';
+          prey.combatDefenseTimer = 0.34;
+          if (prey.dna.traits.motility !== 'sessile') {
+            const slipSide = prey.id % 2 === 0 ? 1 : -1;
+            const slipAngle = attackAngleWorld + slipSide * (Math.PI * 0.38);
+            prey.vx += Math.cos(slipAngle) * 34 * dt;
+            prey.vy += Math.sin(slipAngle) * 34 * dt;
+          }
         }
 
-        // Daño reflejado si la presa tiene Pinchos Calcáreos o Capa S Cristalina (pueden acumularse)
-        if (prey.dna.hasAdaptation('spikes')) {
-          this.energy -= biteDmg * 0.4;
-          this.beingAttackedTimer = 0.25;
-        }
-        if (prey.dna.traits.wall === 's_layer') {
-          this.energy -= biteDmg * 0.2;
+        // Daño reflejado y contraataque físico si la presa tiene Pinchos Calcáreos o Capa S Cristalina (pueden acumularse)
+        const hasSpikes = prey.dna.hasAdaptation('spikes');
+        const hasSLayer = prey.dna.traits.wall === 's_layer';
+        if (hasSpikes || hasSLayer) {
+          const reflectRatio = (hasSpikes ? 0.4 : 0) + (hasSLayer ? 0.2 : 0);
+          this.energy -= biteDmg * reflectRatio;
+          this.beingAttackedTimer = 0.32;
+          this.combatHitType = 'spikes';
+          this.combatAttackerAngle = attackAngleWorld - this.angle;
+          prey.combatDefenseType = 'armor_reflect';
+          prey.combatDefenseTimer = 0.36;
+          // Rebote físico contra el depredador al morder una coraza espinosa/cristalina
+          if (this.dna.traits.motility !== 'sessile') {
+            this.vx -= Math.cos(attackAngleWorld) * 24 * dt;
+            this.vy -= Math.sin(attackAngleWorld) * 24 * dt;
+          }
+        } else if (prey.dna.stats.armor >= 5.0) {
+          prey.combatDefenseType = 'armor_reflect';
+          prey.combatDefenseTimer = 0.3;
         }
 
         this.energy += biteDmg * SimConfig.PREDATION_EFFICIENCY * mawBonus;
@@ -841,7 +1009,7 @@ export class Bacteria {
     }
     if (this.y > bounds.height - r) {
       this.y = bounds.height - r;
-      this.vx *= -1;
+      this.vy *= -1;
       this.angle = Math.atan2(this.vy, this.vx);
     }
   }

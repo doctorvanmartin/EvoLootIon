@@ -117,16 +117,16 @@ export class Bacteriophage {
       // Comprobar contacto de adsorción con las fibras caudales del fago
       const contactDist = this.radius + closestTarget.radius + 2.5;
       if (minDistSq <= contactDist * contactDist) {
-        if (closestTarget.tryAdsorbPhage()) {
+        if (closestTarget.tryAdsorbPhage(this.x, this.y)) {
           this.isDead = true;
           return;
         } else {
           // Rebote si la pared celular (Capa S / Cápsula) bloquea los receptores
           this.angle += Math.PI + (Math.random() - 0.5) * 0.9;
           this.wanderAngle = this.angle;
-          this.vx = Math.cos(this.angle) * SimConfig.PHAGE_DRIFT_SPEED;
-          this.vy = Math.sin(this.angle) * SimConfig.PHAGE_DRIFT_SPEED;
-          this.spawnCooldown = 0.45;
+          this.vx = Math.cos(this.angle) * SimConfig.PHAGE_DRIFT_SPEED * 1.45;
+          this.vy = Math.sin(this.angle) * SimConfig.PHAGE_DRIFT_SPEED * 1.45;
+          this.spawnCooldown = 0.55;
         }
       }
     } else {

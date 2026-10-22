@@ -48,7 +48,7 @@ El ciclo de vida en `SimulationEngine.loop()` sigue un esquema desacoplado entre
 flowchart TD
     A[requestAnimationFrame] --> B[Calcular dt acotado y FPS]
     B --> C{¿Simulación en pausa?}
-    C -- No --> D[Sub-stepping según timeScale 1x/2x/4x]
+    C -- No --> D[Sub-stepping según timeScale 1x/2x/4x/0,5x]
     D --> E[1. Deriva suave del epicentro de luz y spawn pasivo de nutrientes]
     E --> F[2. Reconstruir gridNutrients y gridBacteria O_N Zero-GC]
     F --> G[3. Bacteria.update: Esporulación, Fototaxis/Quimiotaxis, Auto-sombreado, Metabolismo, Toxinas, Predación, División]
@@ -99,8 +99,8 @@ flowchart TD
 
 ### ADR-05: Sub-stepping Físico y Nivel de Detalle Dinámico (LOD)
 
-* **Contexto:** Al acelerar la simulación (`2x`, `4x`), multiplicar directamente `dt` por 4 provoca que bacterias rápidas atraviesen nutrientes o paredes sin detectar contacto (*efecto túnel*). Por otro lado, cuando la población supera varios cientos de individuos o el usuario aleja el zoom, dibujar cilios individuales y gradientes para cada célula penaliza la GPU/CPU.
+* **Contexto:** Al acelerar la simulación (`2x`, `4x`), multiplicar directamente `dt` por 4 provoca que bacterias rápidas atraviesen nutrientes o paredes sin detectar contacto (*efecto túnel*). El HUD permite alternar entre `1x`, `2x`, `4x` y `0,5x`; la escala fraccionaria ralentiza el tiempo simulado usando un `dt` menor. Por otro lado, cuando la población supera varios cientos de individuos o el usuario aleja el zoom, dibujar cilios individuales y gradientes para cada célula penaliza la GPU/CPU.
 * **Decisión:**
   * En `SimulationEngine.loop()`, cuando `timeScale > 1`, el avance se divide en `steps = Math.round(timeScale)` sub-pasos físicos con `stepDt` constante.
   * `SimulationEngine.render()` activa automáticamente el modo `lowDetail` cuando `camera.zoom < 0.65`, cuando `bacteria.length > 450` o cuando el usuario lo fuerza desde el HUD. En modo de alto detalle (`!lowDetail`), `ProceduralRenderer` dibuja ultraestructura microbiológica realista en bacterias (nucleoide fibrilar superenrollado, sombreado de contraste de fases, orgánulos según metabolismo, ribosomas 70S, pre-esporas polares, endosporas latentes multicapa, cuerpos basales flagelares, endoflagelo axial periplásmico en doble pasada 3D escalado a los semiejes reales del soma y grosor de pared, fimbrias de adhesión en biofilm y anillo FtsZ), partículas de sustrato con morfologías diversas (cristales hexagonales, romboides, tríadas de aminoácidos, esquirlas y gránulos) y restos celulares lisados realistas para los cadáveres orgánicos. En modo `lowDetail` se simplifican a primitivas ligeras, manteniendo intacta la lectura de forma y color.
-* **Consecuencias:** La simulación mantiene la misma precisión matemática a `1x` y a `4x`, y sostiene 60 FPS fluidos en pantallas de alta densidad (`devicePixelRatio`).
+* **Consecuencias:** La simulación mantiene la misma precisión matemática a `1x` y a `4x`, y sostiene 60 FPS fluidos en pantallas de alta densidad (`devicePixelRatio`); a `0,5x`, todos los procesos evolucionan a la mitad de velocidad de reloj.

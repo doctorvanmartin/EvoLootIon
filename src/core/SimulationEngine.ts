@@ -532,6 +532,7 @@ export class SimulationEngine {
       for (let i = 0; i < this.bacteria.length; i++) {
         this.bacteria[i].isInfectedByPhage = false;
         this.bacteria[i].phageInfectionProgress = 0;
+        this.bacteria[i].phageCrisprProgress = 0;
         this.bacteria[i].burstPhagesPending = false;
       }
     }
@@ -733,15 +734,18 @@ export class SimulationEngine {
         const baseAngle = Math.random() * Math.PI * 2;
         for (let p = 0; p < canSpawn; p++) {
           const ang = baseAngle + (p / SimConfig.PHAGE_BURST_SIZE) * Math.PI * 2;
-          const dist = b.radius * 0.85;
-          this.phages.push(
-            new Bacteriophage(
-              b.x + Math.cos(ang) * dist,
-              b.y + Math.sin(ang) * dist,
-              ang,
-              SimConfig.PHAGE_SPAWN_COOLDOWN
-            )
+          const dist = b.radius * 0.65;
+          const newPhage = new Bacteriophage(
+            b.x + Math.cos(ang) * dist,
+            b.y + Math.sin(ang) * dist,
+            ang,
+            SimConfig.PHAGE_SPAWN_COOLDOWN
           );
+          // Impulso centrífugo de eyección lítica al reventar la membrana celular
+          const burstSpeed = SimConfig.PHAGE_SEEK_SPEED * 1.85;
+          newPhage.vx = Math.cos(ang) * burstSpeed;
+          newPhage.vy = Math.sin(ang) * burstSpeed;
+          this.phages.push(newPhage);
         }
       }
     }

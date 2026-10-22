@@ -36,8 +36,13 @@ const miniStrainName = document.getElementById('miniStrainName')!;
 const miniStrainTaxonomy = document.getElementById('miniStrainTaxonomy')!;
 const miniBadgeTotalCost = document.getElementById('miniBadgeTotalCost')!;
 const miniBadgeEfficiency = document.getElementById('miniBadgeEfficiency')!;
+const btnEditDna = document.getElementById('btnEditDna') as HTMLButtonElement;
+const lblEditDna = document.getElementById('lblEditDna')!;
 const btnCopyDna = document.getElementById('btnCopyDna') as HTMLButtonElement;
 const lblCopyDna = document.getElementById('lblCopyDna')!;
+const dnaStrandEditWrap = document.getElementById('dnaStrandEditWrap')!;
+const dnaStrandInput = document.getElementById('dnaStrandInput') as HTMLInputElement;
+const dnaStrandFeedback = document.getElementById('dnaStrandFeedback')!;
 
 const strainNameInput = document.getElementById('strainName') as HTMLInputElement;
 const traitButtons = document.querySelectorAll<HTMLButtonElement>('.trait-btn');
@@ -45,9 +50,18 @@ const langButtons = document.querySelectorAll<HTMLButtonElement>('[data-lang-btn
 const ageButtons = document.querySelectorAll<HTMLButtonElement>('[data-age-btn]');
 const categoryTabButtons = document.querySelectorAll<HTMLButtonElement>('[data-category-tab]');
 const traitCategories = document.querySelectorAll<HTMLElement>('.trait-category[data-trait-group]');
-const btnPrevCategory = document.getElementById('btnPrevCategory') as HTMLButtonElement;
-const btnNextCategory = document.getElementById('btnNextCategory') as HTMLButtonElement;
-const lblCategoryStepIndicator = document.getElementById('lblCategoryStepIndicator')!;
+const strainNameSuffixChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const strainNameSessionSuffix = Array.from(
+  { length: 4 },
+  () => strainNameSuffixChars[Math.floor(Math.random() * strainNameSuffixChars.length)]
+).join('');
+const savedStrainName = localStorage.getItem('evolootion.strainName');
+if (savedStrainName !== null) {
+  const restoredStrainName = savedStrainName.trim();
+  strainNameInput.value = restoredStrainName
+    ? `${restoredStrainName} ${strainNameSessionSuffix}`
+    : savedStrainName;
+}
 
 const rngSize = document.getElementById('rngSize') as HTMLInputElement;
 const rngSpeed = document.getElementById('rngSpeed') as HTMLInputElement;
@@ -92,7 +106,6 @@ const locusWall = document.getElementById('locusWall')!;
 const locusReproduction = document.getElementById('locusReproduction')!;
 const locusInteraction = document.getElementById('locusInteraction')!;
 const locusAdaptation = document.getElementById('locusAdaptation')!;
-const locusHue = document.getElementById('locusHue')!;
 
 const dnaStrandDisplay = document.getElementById('dnaStrandDisplay')!;
 const previewTaxonomyName = document.getElementById('previewTaxonomyName')!;
@@ -204,6 +217,18 @@ const TRAIT_ICONS: {
   },
 };
 
+function splitParentheticalSubtitle(rawText: string): { main: string; sub: string | null } {
+  const cleaned = rawText.replace(/^〰️\s*/, '').trim();
+  const match = cleaned.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+  if (!match) {
+    return { main: cleaned, sub: null };
+  }
+  return {
+    main: match[1].trim(),
+    sub: match[2].trim(),
+  };
+}
+
 function setElementWithIcon(
   el: HTMLElement | null,
   iconFile: string,
@@ -220,6 +245,147 @@ function setElementWithIcon(
   const span = document.createElement('span');
   span.textContent = text;
   el.append(img, span);
+}
+
+function setTraitCardHeaderWithSubtitle(
+  el: HTMLElement | null,
+  iconFile: string,
+  rawTitle: string,
+  iconClass = 'trait-icon'
+): void {
+  if (!el) return;
+  el.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = `icons/${iconFile}`;
+  img.alt = '';
+  img.className = iconClass;
+  img.decoding = 'async';
+
+  const { main, sub } = splitParentheticalSubtitle(rawTitle);
+  const stack = document.createElement('span');
+  stack.className = 'trait-title-stack';
+
+  const mainSpan = document.createElement('span');
+  mainSpan.className = 'trait-title-main';
+  mainSpan.textContent = main;
+  stack.appendChild(mainSpan);
+
+  if (sub) {
+    const subSpan = document.createElement('span');
+    subSpan.className = 'trait-title-sub';
+    subSpan.textContent = sub;
+    stack.appendChild(subSpan);
+  }
+
+  el.append(img, stack);
+}
+
+function setHeadingWithParentheticalSubtitle(
+  el: HTMLElement | null,
+  rawTitle: string
+): void {
+  if (!el) return;
+  const { main, sub } = splitParentheticalSubtitle(rawTitle);
+  el.innerHTML = '';
+  if (!sub) {
+    el.classList.remove('category-title-stack');
+    el.textContent = main;
+    return;
+  }
+  el.classList.add('category-title-stack');
+  const mainSpan = document.createElement('span');
+  mainSpan.className = 'category-title-main';
+  mainSpan.textContent = main;
+  const subSpan = document.createElement('span');
+  subSpan.className = 'category-title-sub';
+  subSpan.textContent = sub;
+  el.append(mainSpan, subSpan);
+}
+
+function setLabelWithIconAndSubtitle(
+  el: HTMLElement | null,
+  iconFile: string,
+  rawText: string,
+  iconClass = 'ui-icon ui-icon-sm'
+): void {
+  if (!el) return;
+  el.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = `icons/${iconFile}`;
+  img.alt = '';
+  img.className = iconClass;
+  img.decoding = 'async';
+
+  const { main, sub } = splitParentheticalSubtitle(rawText);
+  if (!sub) {
+    const span = document.createElement('span');
+    span.textContent = main;
+    el.append(img, span);
+    return;
+  }
+
+  const stack = document.createElement('span');
+  stack.className = 'field-label-stack';
+  const mainSpan = document.createElement('span');
+  mainSpan.className = 'field-label-main';
+  mainSpan.textContent = main;
+  const subSpan = document.createElement('span');
+  subSpan.className = 'field-label-sub';
+  subSpan.textContent = sub;
+  stack.append(mainSpan, subSpan);
+  el.append(img, stack);
+}
+
+type EnergyMeterTone =
+  | 'tone-basal'
+  | 'tone-swim'
+  | 'tone-toxin'
+  | 'tone-total-low'
+  | 'tone-total-mid'
+  | 'tone-total-high';
+
+function computeEnergyMeterLevel(
+  value: number,
+  thresholds: readonly [number, number, number, number]
+): number {
+  if (value <= 0.005) return 0;
+  if (value < thresholds[0]) return 1;
+  if (value < thresholds[1]) return 2;
+  if (value < thresholds[2]) return 3;
+  if (value < thresholds[3]) return 4;
+  return 5;
+}
+
+function renderEnergyIconMeter(
+  el: HTMLElement,
+  litCount: number,
+  tone: EnergyMeterTone,
+  tooltipText: string,
+  extraTag?: string
+): void {
+  el.innerHTML = '';
+  el.title = tooltipText;
+  const meter = document.createElement('span');
+  meter.className = 'energy-icon-meter';
+  meter.setAttribute('aria-label', `${litCount}/5 (${tooltipText})`);
+
+  for (let i = 1; i <= 5; i++) {
+    const icon = document.createElement('img');
+    icon.src = 'icons/atp-energy.png';
+    icon.alt = '';
+    icon.decoding = 'async';
+    icon.className =
+      i <= litCount ? `energy-meter-unit is-lit ${tone}` : 'energy-meter-unit is-off';
+    meter.appendChild(icon);
+  }
+  el.appendChild(meter);
+
+  if (extraTag) {
+    const tag = document.createElement('span');
+    tag.className = 'energy-meter-tag';
+    tag.textContent = `(${extraTag})`;
+    el.appendChild(tag);
+  }
 }
 
 const selectedTraits: GenomeTraits = {
@@ -325,36 +491,181 @@ const CATEGORY_ORDER: readonly (keyof GenomeTraits)[] = [
   'adaptation',
 ] as const;
 
-let activeCategoryGroup: keyof GenomeTraits = 'metabolism';
+let activeCategoryGroup: keyof GenomeTraits | null = 'metabolism';
 
-function setActiveCategoryGroup(group: keyof GenomeTraits, focusTab = false): void {
+function scrollElementToTopInEditor(targetEl: HTMLElement): void {
+  const scrollContainerRect = editorBodyScroll.getBoundingClientRect();
+  const targetRect = targetEl.getBoundingClientRect();
+  const topOffset = 12;
+  const nextScrollTop =
+    editorBodyScroll.scrollTop + (targetRect.top - scrollContainerRect.top) - topOffset;
+  editorBodyScroll.scrollTo({
+    top: Math.max(0, nextScrollTop),
+    behavior: 'smooth',
+  });
+}
+
+function setActiveCategoryGroup(
+  group: keyof GenomeTraits | null,
+  focusTab = false,
+  scrollIntoViewOnOpen = true
+): void {
   activeCategoryGroup = group;
 
   categoryTabButtons.forEach((btn) => {
-    const isTarget = btn.dataset.categoryTab === group;
+    const isTarget = group !== null && btn.dataset.categoryTab === group;
     btn.classList.toggle('active', isTarget);
-    btn.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+    btn.setAttribute('aria-expanded', isTarget ? 'true' : 'false');
     if (isTarget && focusTab) {
       btn.focus();
     }
   });
 
+  let openedCatEl: HTMLElement | null = null;
   traitCategories.forEach((catEl) => {
-    catEl.classList.toggle('is-open', catEl.dataset.traitGroup === group);
+    const isTarget = group !== null && catEl.dataset.traitGroup === group;
+    catEl.classList.toggle('is-open', isTarget);
+    if (isTarget) {
+      openedCatEl = catEl;
+    }
   });
 
-  updateCategoryStepNavText();
+  if (scrollIntoViewOnOpen && openedCatEl) {
+    scrollElementToTopInEditor(openedCatEl);
+  }
 }
 
-function updateCategoryStepNavText(): void {
+let customDnaStatsOverride: {
+  size?: number;
+  maxSpeed?: number;
+  armor?: number;
+  perceptionRadius?: number;
+  toxinPower?: number;
+  hue?: number;
+} | null = null;
+let isEditingPlayerDna = false;
+let playerDnaEditFeedbackResult: CodingStrandParseResult | null = null;
+
+function setInputRangeOrOverride(input: HTMLInputElement, value: number): boolean {
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const step = Number(input.step);
+  const clamped = Math.min(max, Math.max(min, value));
+  const stepped = Number((min + Math.round((clamped - min) / step) * step).toFixed(4));
+  input.value = String(stepped);
+  return Math.abs(stepped - value) > 1e-3;
+}
+
+function applyParsedPlayerDnaToDesigner(dna: DNA): void {
+  selectedTraits.metabolism = dna.traits.metabolism;
+  selectedTraits.motility = dna.traits.motility;
+  selectedTraits.wall = dna.traits.wall;
+  selectedTraits.reproduction = dna.traits.reproduction;
+  selectedTraits.interaction = dna.traits.interaction;
+  const adapts = DNA.syncTraitAdaptations(dna.traits);
+  selectedTraits.adaptations = [...adapts];
+  selectedTraits.adaptation = adapts[0] ?? 'none';
+
+  traitButtons.forEach((btn) => {
+    const category = btn.dataset.trait as keyof GenomeTraits | undefined;
+    if (category && category !== 'adaptation') {
+      btn.classList.toggle('active', selectedTraits[category] === btn.dataset.value);
+    }
+  });
+  syncAdaptationButtonsUI();
+
+  const override: NonNullable<typeof customDnaStatsOverride> = {};
+
+  if (setInputRangeOrOverride(rngSize, dna.stats.size)) {
+    override.size = dna.stats.size;
+  }
+  if (dna.traits.motility !== 'sessile' && dna.traits.motility !== 'nonmotile') {
+    if (setInputRangeOrOverride(rngSpeed, dna.stats.maxSpeed)) {
+      override.maxSpeed = dna.stats.maxSpeed;
+    }
+  }
+  if (setInputRangeOrOverride(rngArmor, dna.stats.armor)) {
+    override.armor = dna.stats.armor;
+  }
+  if (setInputRangeOrOverride(rngPerception, dna.stats.perceptionRadius)) {
+    override.perceptionRadius = dna.stats.perceptionRadius;
+  }
+  if (dna.traits.interaction !== 'neutral' && dna.traits.interaction !== 'siderophores') {
+    if (setInputRangeOrOverride(rngToxin, dna.stats.toxinPower)) {
+      override.toxinPower = dna.stats.toxinPower;
+    }
+  }
+  if (setInputRangeOrOverride(rngHue, dna.hue)) {
+    override.hue = dna.hue;
+  }
+
+  customDnaStatsOverride = Object.keys(override).length > 0 ? override : null;
+  updateDesignerReadouts(true);
+}
+
+function renderPlayerDnaFeedback(): void {
   const ui = i18n.getBundle().ui;
-  const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
-  const currentNum = idx >= 0 ? idx + 1 : 1;
-  lblCategoryStepIndicator.textContent = ui.categoryTabs.stepOf
-    .replace('{current}', String(currentNum))
-    .replace('{total}', String(CATEGORY_ORDER.length));
-  btnPrevCategory.textContent = ui.categoryTabs.prev;
-  btnNextCategory.textContent = ui.categoryTabs.next;
+  dnaStrandFeedback.classList.remove('is-valid', 'is-invalid');
+  dnaStrandInput.classList.remove('is-invalid');
+
+  if (!isEditingPlayerDna || !playerDnaEditFeedbackResult) {
+    dnaStrandFeedback.textContent = '';
+    return;
+  }
+
+  const res = playerDnaEditFeedbackResult;
+  if (res.ok) {
+    const taxonomy = DNA.generateProceduralName(res.dna.traits, res.dna.stats);
+    dnaStrandFeedback.classList.add('is-valid');
+    dnaStrandFeedback.textContent = ui.editDnaValid
+      .replace('{taxonomy}', taxonomy)
+      .replace('{strand}', res.normalizedStrand);
+  } else {
+    const template = ui.customRivalDna.errors[res.errorKey];
+    dnaStrandFeedback.classList.add('is-invalid');
+    dnaStrandInput.classList.add('is-invalid');
+    dnaStrandFeedback.textContent = template
+      .replace('{token}', res.token ?? '')
+      .replace('{expected}', res.expected ?? '');
+  }
+}
+
+function setPlayerDnaEditMode(editing: boolean): void {
+  isEditingPlayerDna = editing;
+  const ui = i18n.getBundle().ui;
+  btnEditDna.classList.toggle('active', editing);
+  btnEditDna.setAttribute('aria-expanded', editing ? 'true' : 'false');
+  lblEditDna.textContent = editing ? ui.editDnaDoneBtn : ui.editDnaBtn;
+  dnaStrandDisplay.classList.toggle('hidden', editing);
+  dnaStrandEditWrap.classList.toggle('hidden', !editing);
+
+  if (editing) {
+    const currentDna = buildUserDNA();
+    dnaStrandInput.value = currentDna.codingStrand;
+    playerDnaEditFeedbackResult = {
+      ok: true,
+      dna: currentDna,
+      normalizedStrand: currentDna.codingStrand,
+    };
+    renderPlayerDnaFeedback();
+    dnaStrandInput.focus();
+    dnaStrandInput.select();
+  } else {
+    playerDnaEditFeedbackResult = null;
+    renderPlayerDnaFeedback();
+  }
+}
+
+function handlePlayerDnaInput(): void {
+  const raw = dnaStrandInput.value;
+  const defaultName = i18n.getBundle().ui.defaultPlayerStrainName;
+  const name = strainNameInput.value.trim() || defaultName;
+  const result = DNA.parseCodingStrand(raw, 'player_strain', name);
+  playerDnaEditFeedbackResult = result;
+  if (result.ok) {
+    applyParsedPlayerDnaToDesigner(result.dna);
+  }
+  renderPlayerDnaFeedback();
 }
 
 // --- Construcción del ADN desde el Diseñador ---
@@ -365,27 +676,31 @@ function buildUserDNA(): DNA {
     adaptation: adapts[0] ?? 'none',
     adaptations: [...adapts],
   };
-  const size = parseFloat(rngSize.value);
-  const perceptionRadius = parseFloat(rngPerception.value);
+  const size = customDnaStatsOverride?.size ?? parseFloat(rngSize.value);
+  const perceptionRadius =
+    customDnaStatsOverride?.perceptionRadius ?? parseFloat(rngPerception.value);
+  const baseSpeed = customDnaStatsOverride?.maxSpeed ?? parseFloat(rngSpeed.value);
+  const baseToxin = customDnaStatsOverride?.toxinPower ?? parseFloat(rngToxin.value);
+  const armor = customDnaStatsOverride?.armor ?? parseFloat(rngArmor.value);
   const stats: GenomeStats = {
     size,
     maxSpeed:
       traits.motility === 'sessile' || traits.motility === 'nonmotile'
         ? 0
-        : parseFloat(rngSpeed.value),
+        : baseSpeed,
     splitEnergy: Math.round(95 + size * 5.5),
     basalMetabolism: 0,
     dragFactor: 0,
     toxinPower:
       traits.interaction === 'neutral' || traits.interaction === 'siderophores'
         ? 0
-        : parseFloat(rngToxin.value),
-    armor: parseFloat(rngArmor.value),
+        : baseToxin,
+    armor,
     perceptionRadius,
     mutationRate: 0.05,
   };
 
-  const hue = parseFloat(rngHue.value);
+  const hue = customDnaStatsOverride?.hue ?? parseFloat(rngHue.value);
   const defaultName = i18n.getBundle().ui.defaultPlayerStrainName;
   const name = strainNameInput.value.trim() || defaultName;
   return new DNA('player_strain', hue, traits, stats, 1, name);
@@ -618,7 +933,7 @@ function handleAddCustomRival(): void {
   updateDesignerReadouts();
 }
 
-function updateDesignerReadouts(): void {
+function updateDesignerReadouts(preserveEditingInput = false): void {
   const ui = i18n.getBundle().ui;
   const dna = buildUserDNA();
   previewDummy.dna = dna;
@@ -626,9 +941,8 @@ function updateDesignerReadouts(): void {
 
   const effSpeed = dna.getEffectiveMaxSpeed();
   const loci = dna.getCategoryLoci();
-  const growthRange = DNA.getMetabolicGrowthRange(dna.traits.metabolism);
 
-  valSize.textContent = `${dna.stats.size.toFixed(1)} px (${(dna.stats.size * growthRange.min).toFixed(1)}–${(dna.stats.size * growthRange.max).toFixed(1)})`;
+  valSize.textContent = `${dna.stats.size.toFixed(1)} px`;
 
   if (dna.traits.motility === 'sessile') {
     valSpeed.textContent = ui.sessileZero;
@@ -699,7 +1013,6 @@ function updateDesignerReadouts(): void {
   locusReproduction.textContent = loci.reproductionLocus;
   locusInteraction.textContent = loci.interactionLocus;
   locusAdaptation.textContent = `${ui.genePrefix}: ${loci.adaptationLocus}`;
-  locusHue.textContent = loci.chromophoreLocus;
 
   // Actualizar los resúmenes en las pestañas rápidas de categorías (A..F)
   const ageTraits = i18n.getAgeContent().traits;
@@ -711,15 +1024,11 @@ function updateDesignerReadouts(): void {
   const interEntry = ageTraits.interaction[dna.traits.interaction];
   const activeAdapts = dna.getAdaptations();
   const primaryAdaptKey: AdaptationType = activeAdapts[0] ?? 'none';
-  const adaptSummaryLabel =
-    activeAdapts.length === 0
-      ? ageTraits.adaptation.none.inspectorLabel
-      : activeAdapts.map((a) => ageTraits.adaptation[a].inspectorLabel).join(' + ');
 
   setElementWithIcon(
     document.getElementById('catTraitMetabolism'),
     TRAIT_ICONS.metabolism[dna.traits.metabolism],
-    metaEntry.inspectorLabel,
+    splitParentheticalSubtitle(metaEntry.inspectorLabel).main,
     'ui-icon ui-icon-xs'
   );
   setTextById('catLocusMetabolism', loci.metabolismLocus);
@@ -727,7 +1036,7 @@ function updateDesignerReadouts(): void {
   setElementWithIcon(
     document.getElementById('catTraitMotility'),
     TRAIT_ICONS.motility[dna.traits.motility],
-    motEntry.inspectorLabel,
+    splitParentheticalSubtitle(motEntry.inspectorLabel).main,
     'ui-icon ui-icon-xs'
   );
   setTextById('catLocusMotility', loci.motilityLocus);
@@ -735,7 +1044,7 @@ function updateDesignerReadouts(): void {
   setElementWithIcon(
     document.getElementById('catTraitWall'),
     TRAIT_ICONS.wall[dna.traits.wall],
-    wallEntry.inspectorLabel,
+    splitParentheticalSubtitle(wallEntry.inspectorLabel).main,
     'ui-icon ui-icon-xs'
   );
   setTextById('catLocusWall', loci.wallLocus);
@@ -743,7 +1052,7 @@ function updateDesignerReadouts(): void {
   setElementWithIcon(
     document.getElementById('catTraitReproduction'),
     TRAIT_ICONS.reproduction[dna.traits.reproduction],
-    reproEntry.inspectorLabel,
+    splitParentheticalSubtitle(reproEntry.inspectorLabel).main,
     'ui-icon ui-icon-xs'
   );
   setTextById('catLocusReproduction', loci.reproductionLocus);
@@ -751,20 +1060,31 @@ function updateDesignerReadouts(): void {
   setElementWithIcon(
     document.getElementById('catTraitInteraction'),
     TRAIT_ICONS.interaction[dna.traits.interaction],
-    interEntry.inspectorLabel,
+    splitParentheticalSubtitle(interEntry.inspectorLabel).main,
     'ui-icon ui-icon-xs'
   );
   setTextById('catLocusInteraction', loci.interactionLocus);
 
+  const adaptMainLabels =
+    activeAdapts.length === 0
+      ? splitParentheticalSubtitle(ageTraits.adaptation.none.inspectorLabel).main
+      : activeAdapts
+          .map((a) => splitParentheticalSubtitle(ageTraits.adaptation[a].inspectorLabel).main)
+          .join(' + ');
+
   setElementWithIcon(
     document.getElementById('catTraitAdaptation'),
     TRAIT_ICONS.adaptation[primaryAdaptKey],
-    adaptSummaryLabel,
+    adaptMainLabels,
     'ui-icon ui-icon-xs'
   );
   setTextById('catLocusAdaptation', loci.adaptationLocus);
 
   // Costes Bioenergéticos (Kleiber + Nado a velocidad efectiva + Química)
+  const ageGroup = i18n.getAgeGroup();
+  const isYoungAgeGroup = ageGroup === '5-7' || ageGroup === '8-10';
+  const ageBioBalance = i18n.getAgeContent().bioBalance;
+
   const basalCost = dna.stats.basalMetabolism;
   const swimCruiseCost = dna.stats.dragFactor * (effSpeed ** 2);
   const rawToxinCost =
@@ -777,30 +1097,87 @@ function updateDesignerReadouts(): void {
     dna.traits.interaction === 'quorum_sensing' ? rawToxinCost * 0.5 : rawToxinCost;
   const totalCost = basalCost + swimCruiseCost + effectiveToxinCost;
 
-  badgeBasal.textContent = `${basalCost.toFixed(2)} ATP/s`;
-  badgeDrag.textContent = `${swimCruiseCost.toFixed(2)} ATP/s`;
-  badgeToxinCost.textContent =
+  const toxinExtraTag =
     dna.traits.interaction === 'quorum_sensing'
-      ? `${effectiveToxinCost.toFixed(2)} ATP/s (${ui.quorumTag})`
+      ? ui.quorumTag
       : dna.traits.interaction === 'siderophores'
-        ? `${rawToxinCost.toFixed(2)} ATP/s (${ui.magnetTag})`
-        : `${rawToxinCost.toFixed(2)} ATP/s`;
-  badgeTotalCost.textContent = `${totalCost.toFixed(2)} ATP/s`;
+        ? ui.magnetTag
+        : undefined;
+  const basalText = `${basalCost.toFixed(2)} ATP/s`;
+  const swimText = `${swimCruiseCost.toFixed(2)} ATP/s`;
+  const toxinCostVal =
+    dna.traits.interaction === 'quorum_sensing' ? effectiveToxinCost : rawToxinCost;
+  const toxinText = toxinExtraTag
+    ? `${toxinCostVal.toFixed(2)} ATP/s (${toxinExtraTag})`
+    : `${toxinCostVal.toFixed(2)} ATP/s`;
+  const totalText = `${totalCost.toFixed(2)} ATP/s`;
+
+  const totalTone: EnergyMeterTone =
+    totalCost <= 2.35
+      ? 'tone-total-low'
+      : totalCost <= 3.65
+        ? 'tone-total-mid'
+        : 'tone-total-high';
+
+  if (isYoungAgeGroup) {
+    renderEnergyIconMeter(
+      badgeBasal,
+      computeEnergyMeterLevel(basalCost, [1.15, 1.85, 2.65, 3.6]),
+      'tone-basal',
+      basalText
+    );
+    renderEnergyIconMeter(
+      badgeDrag,
+      computeEnergyMeterLevel(swimCruiseCost, [0.18, 0.55, 1.25, 2.2]),
+      'tone-swim',
+      swimText
+    );
+    renderEnergyIconMeter(
+      badgeToxinCost,
+      computeEnergyMeterLevel(toxinCostVal, [0.18, 0.35, 0.58, 0.78]),
+      'tone-toxin',
+      toxinText,
+      toxinExtraTag
+    );
+    renderEnergyIconMeter(
+      badgeTotalCost,
+      computeEnergyMeterLevel(totalCost, [1.65, 2.35, 3.2, 4.1]),
+      totalTone,
+      totalText
+    );
+    renderEnergyIconMeter(
+      miniBadgeTotalCost,
+      computeEnergyMeterLevel(totalCost, [1.65, 2.35, 3.2, 4.1]),
+      totalTone,
+      totalText
+    );
+  } else {
+    badgeBasal.title = '';
+    badgeDrag.title = '';
+    badgeToxinCost.title = '';
+    badgeTotalCost.title = '';
+    miniBadgeTotalCost.title = '';
+    badgeBasal.textContent = basalText;
+    badgeDrag.textContent = swimText;
+    badgeToxinCost.textContent = toxinText;
+    badgeTotalCost.textContent = totalText;
+    miniBadgeTotalCost.textContent = totalText;
+  }
 
   badgeEfficiency.classList.remove('warning', 'danger');
   miniBadgeEfficiency.classList.remove('warning', 'danger');
   if (totalCost <= 2.35) {
-    badgeEfficiency.textContent = ui.efficiencyHigh;
-    miniBadgeEfficiency.textContent = ui.efficiencyHigh;
+    badgeEfficiency.textContent = ageBioBalance.efficiencyHigh;
+    miniBadgeEfficiency.textContent = ageBioBalance.efficiencyHigh;
   } else if (totalCost <= 3.65) {
-    badgeEfficiency.textContent = ui.efficiencyModerate;
+    badgeEfficiency.textContent = ageBioBalance.efficiencyModerate;
     badgeEfficiency.classList.add('warning');
-    miniBadgeEfficiency.textContent = ui.efficiencyModerate;
+    miniBadgeEfficiency.textContent = ageBioBalance.efficiencyModerate;
     miniBadgeEfficiency.classList.add('warning');
   } else {
-    badgeEfficiency.textContent = ui.efficiencyDanger;
+    badgeEfficiency.textContent = ageBioBalance.efficiencyDanger;
     badgeEfficiency.classList.add('danger');
-    miniBadgeEfficiency.textContent = ui.efficiencyDanger;
+    miniBadgeEfficiency.textContent = ageBioBalance.efficiencyDanger;
     miniBadgeEfficiency.classList.add('danger');
   }
 
@@ -826,9 +1203,17 @@ function updateDesignerReadouts(): void {
   // Actualizar también la barra compacta flotante (imagen mini + consumo total de ATP)
   miniStrainName.textContent = dna.lineageName;
   miniStrainTaxonomy.textContent = taxName;
-  miniBadgeTotalCost.textContent = `${totalCost.toFixed(2)} ATP/s`;
 
   renderCodingStrandTokens(dna);
+  if (isEditingPlayerDna && !preserveEditingInput) {
+    dnaStrandInput.value = dna.codingStrand;
+    playerDnaEditFeedbackResult = {
+      ok: true,
+      dna,
+      normalizedStrand: dna.codingStrand,
+    };
+    renderPlayerDnaFeedback();
+  }
 }
 
 function syncMiniStickyBarVisibility(): boolean {
@@ -871,8 +1256,8 @@ function animatePreview(): void {
     if (isMiniVisible) {
       const miniCtx = miniPreviewCanvas.getContext('2d');
       if (miniCtx) {
-        const mw = miniPreviewCanvas.clientWidth || 84;
-        const mh = miniPreviewCanvas.clientHeight || 50;
+        const mw = miniPreviewCanvas.clientWidth || 100;
+        const mh = miniPreviewCanvas.clientHeight || 60;
         if (
           miniPreviewCanvas.width !== Math.floor(mw * dpr) ||
           miniPreviewCanvas.height !== Math.floor(mh * dpr)
@@ -990,23 +1375,39 @@ function updateInspectorView(): void {
   inspState.textContent = b.isDying
     ? ui.inspector.stateDying
     : b.isInfectedByPhage
-      ? `${ui.inspector.stateInfectedPhage} (${Math.round(b.phageInfectionProgress * 100)}%)`
-      : b.dividingProgress > 0
-        ? `${ui.inspector.stateDividing} (${Math.round(b.dividingProgress * 100)}%)`
-        : b.isSpore
-          ? ui.inspector.stateSpore
-          : b.isEmittingToxin
-            ? ui.inspector.stateToxinActive
-            : ui.inspector.stateVegetative;
+      ? b.phageCrisprProgress >= b.phageInfectionProgress * 0.65
+        ? `${ui.inspector.stateFightingPhage} (${Math.round(b.phageCrisprProgress * 100)}%)`
+        : `${ui.inspector.stateInfectedPhage} (${Math.round(b.phageInfectionProgress * 100)}%)`
+      : b.phageCuredTimer > 0
+        ? ui.inspector.statePhageCured
+        : b.isAttackingTimer > 0
+          ? ui.inspector.statePredating
+          : b.beingAttackedTimer > 0
+            ? ui.inspector.stateUnderAttack
+            : b.dividingProgress > 0
+              ? `${ui.inspector.stateDividing} (${Math.round(b.dividingProgress * 100)}%)`
+              : b.isSpore
+                ? ui.inspector.stateSpore
+                : b.isEmittingToxin
+                  ? ui.inspector.stateToxinActive
+                  : ui.inspector.stateVegetative;
   inspState.style.color = b.isDying
     ? '#f87171'
     : b.isInfectedByPhage
-      ? '#c084fc'
-      : b.dividingProgress > 0
-        ? '#38bdf8'
-        : b.isSpore
-          ? '#fbbf24'
-          : '#4ade80';
+      ? b.phageCrisprProgress >= b.phageInfectionProgress * 0.65
+        ? '#34d399'
+        : '#c084fc'
+      : b.phageCuredTimer > 0
+        ? '#34d399'
+        : b.isAttackingTimer > 0
+          ? '#fb923c'
+          : b.beingAttackedTimer > 0
+            ? '#f87171'
+            : b.dividingProgress > 0
+              ? '#38bdf8'
+              : b.isSpore
+                ? '#fbbf24'
+                : '#4ade80';
   inspCodingStrand.textContent = b.dna.codingStrand;
   inspCodingStrand.title = b.dna.codingStrand;
   inspGen.textContent = String(b.dna.generation);
@@ -1073,6 +1474,7 @@ traitButtons.forEach((btn) => {
         selectedTraits.adaptations = DNA.normalizeAdaptations(currentList);
         selectedTraits.adaptation = selectedTraits.adaptations[0] ?? 'none';
       }
+      if (customDnaStatsOverride) delete customDnaStatsOverride.maxSpeed;
       syncAdaptationButtonsUI();
       updateDesignerReadouts();
       return;
@@ -1082,12 +1484,14 @@ traitButtons.forEach((btn) => {
       selectedTraits.metabolism = traitVal as MetabolismType;
     } else if (traitCategory === 'motility') {
       selectedTraits.motility = traitVal as MotilityType;
+      if (customDnaStatsOverride) delete customDnaStatsOverride.maxSpeed;
     } else if (traitCategory === 'wall') {
       selectedTraits.wall = traitVal as WallType;
     } else if (traitCategory === 'reproduction') {
       selectedTraits.reproduction = traitVal as ReproductionType;
     } else if (traitCategory === 'interaction') {
       selectedTraits.interaction = traitVal as InteractionType;
+      if (customDnaStatsOverride) delete customDnaStatsOverride.toxinPower;
     }
 
     document
@@ -1098,35 +1502,14 @@ traitButtons.forEach((btn) => {
   });
 });
 
-  // Eventos de cambio rápido entre categorías biológicas (pestañas, teclado, botones Anterior/Siguiente y codones ADN)
+  // Eventos de cambio entre categorías biológicas desplegables (acordeón exclusivo: 1 abierta a la vez) y codones ADN
   categoryTabButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const cat = btn.dataset.categoryTab as keyof GenomeTraits | undefined;
       if (cat && CATEGORY_ORDER.includes(cat)) {
-        setActiveCategoryGroup(cat);
+        setActiveCategoryGroup(activeCategoryGroup === cat ? null : cat);
       }
     });
-
-    btn.addEventListener('keydown', (e) => {
-      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-      e.preventDefault();
-      const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
-      const delta = e.key === 'ArrowRight' ? 1 : -1;
-      const nextIdx = (idx + delta + CATEGORY_ORDER.length) % CATEGORY_ORDER.length;
-      setActiveCategoryGroup(CATEGORY_ORDER[nextIdx], true);
-    });
-  });
-
-  btnPrevCategory.addEventListener('click', () => {
-    const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
-    const prevIdx = (idx - 1 + CATEGORY_ORDER.length) % CATEGORY_ORDER.length;
-    setActiveCategoryGroup(CATEGORY_ORDER[prevIdx]);
-  });
-
-  btnNextCategory.addEventListener('click', () => {
-    const idx = CATEGORY_ORDER.indexOf(activeCategoryGroup);
-    const nextIdx = (idx + 1) % CATEGORY_ORDER.length;
-    setActiveCategoryGroup(CATEGORY_ORDER[nextIdx]);
   });
 
   dnaStrandDisplay.addEventListener('click', (e) => {
@@ -1134,6 +1517,24 @@ traitButtons.forEach((btn) => {
     const cat = target?.dataset.jumpCategory as keyof GenomeTraits | undefined;
     if (cat && CATEGORY_ORDER.includes(cat)) {
       setActiveCategoryGroup(cat);
+    }
+  });
+
+  btnEditDna.addEventListener('click', () => {
+    setPlayerDnaEditMode(!isEditingPlayerDna);
+  });
+
+  dnaStrandInput.addEventListener('input', handlePlayerDnaInput);
+  dnaStrandInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handlePlayerDnaInput();
+      if (playerDnaEditFeedbackResult?.ok) {
+        setPlayerDnaEditMode(false);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setPlayerDnaEditMode(false);
     }
   });
 
@@ -1167,30 +1568,70 @@ traitButtons.forEach((btn) => {
 
   editorBodyScroll.addEventListener('scroll', syncMiniStickyBarVisibility, { passive: true });
 
-  [rngSize, rngSpeed, rngArmor, rngPerception, rngToxin, rngHue, rngInitialPop, rngRivals].forEach(
-  (el) => el.addEventListener('input', updateDesignerReadouts)
-);
+  rngSize.addEventListener('input', () => {
+    if (customDnaStatsOverride) delete customDnaStatsOverride.size;
+    updateDesignerReadouts();
+  });
+  rngSpeed.addEventListener('input', () => {
+    if (customDnaStatsOverride) delete customDnaStatsOverride.maxSpeed;
+    updateDesignerReadouts();
+  });
+  rngArmor.addEventListener('input', () => {
+    if (customDnaStatsOverride) delete customDnaStatsOverride.armor;
+    updateDesignerReadouts();
+  });
+  rngPerception.addEventListener('input', () => {
+    if (customDnaStatsOverride) delete customDnaStatsOverride.perceptionRadius;
+    updateDesignerReadouts();
+  });
+  rngToxin.addEventListener('input', () => {
+    if (customDnaStatsOverride) delete customDnaStatsOverride.toxinPower;
+    updateDesignerReadouts();
+  });
+  rngHue.addEventListener('input', () => {
+    if (customDnaStatsOverride) delete customDnaStatsOverride.hue;
+    updateDesignerReadouts();
+  });
+  [rngInitialPop, rngRivals].forEach((el) =>
+    el.addEventListener('input', () => updateDesignerReadouts())
+  );
 knownSpeciesCheckboxes.forEach((checkbox) =>
-  checkbox.addEventListener('change', updateDesignerReadouts)
+  checkbox.addEventListener('change', () => updateDesignerReadouts())
 );
 hostAgentsCheckboxes.forEach((checkbox) =>
-  checkbox.addEventListener('change', updateDesignerReadouts)
+  checkbox.addEventListener('change', () => updateDesignerReadouts())
 );
-strainNameInput.addEventListener('input', updateDesignerReadouts);
+strainNameInput.addEventListener('input', () => {
+  const displayedSuffix = ` ${strainNameSessionSuffix}`;
+  const strainNameToSave = strainNameInput.value.endsWith(displayedSuffix)
+    ? strainNameInput.value.slice(0, -displayedSuffix.length)
+    : strainNameInput.value;
+  localStorage.setItem('evolootion.strainName', strainNameToSave);
+  updateDesignerReadouts();
+});
 
 btnToggleFamousSpecies.addEventListener('click', () => {
   const isOpen = knownSpeciesBox.classList.toggle('is-open');
   btnToggleFamousSpecies.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  if (isOpen) {
+    scrollElementToTopInEditor(knownSpeciesBox);
+  }
 });
 
 btnToggleHostAgents.addEventListener('click', () => {
   const isOpen = hostAgentsBox.classList.toggle('is-open');
   btnToggleHostAgents.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  if (isOpen) {
+    scrollElementToTopInEditor(hostAgentsBox);
+  }
 });
 
 btnToggleCustomRivalDna.addEventListener('click', () => {
   const isOpen = customRivalDnaBox.classList.toggle('is-open');
   btnToggleCustomRivalDna.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  if (isOpen) {
+    scrollElementToTopInEditor(customRivalDnaBox);
+  }
 });
 
 btnRandomCustomRivalDna.addEventListener('click', () => {
@@ -1328,19 +1769,23 @@ function applyTranslations(): void {
       activeStrainTitle.textContent = ui.defaultPlayerStrainName;
     }
   }
-  setElementWithIcon(
+  setLabelWithIconAndSubtitle(
     document.getElementById('lblParamHue'),
     'param-hue.png',
     age.params.hue,
     'ui-icon ui-icon-sm'
   );
-  setTextById('lblColorGeneBadge', ui.colorGeneBadge);
   setElementWithIcon(
     document.getElementById('lblCodingStrandTitle'),
     'dna-helix.png',
     ui.codingStrandTitle,
     'ui-icon ui-icon-sm'
   );
+  lblEditDna.textContent = isEditingPlayerDna ? ui.editDnaDoneBtn : ui.editDnaBtn;
+  btnEditDna.title = ui.editDnaTitle;
+  dnaStrandInput.placeholder = ui.editDnaPlaceholder;
+  dnaStrandInput.setAttribute('aria-label', ui.codingStrandTitle);
+  renderPlayerDnaFeedback();
   if (!btnCopyDna.classList.contains('copied')) {
     lblCopyDna.textContent = ui.copyDnaBtn;
   }
@@ -1348,14 +1793,14 @@ function applyTranslations(): void {
   setElementWithIcon(
     document.getElementById('lblBioBalanceTitle'),
     'atp-energy.png',
-    ui.bioBalanceTitle,
+    age.bioBalance.title,
     'ui-icon ui-icon-sm'
   );
-  setTextById('lblCostBasal', ui.costBasal);
-  setTextById('lblCostSwim', ui.costSwim);
-  setTextById('lblCostToxin', ui.costToxin);
-  setTextById('lblCostTotal', ui.costTotal);
-  setTextById('lblMiniTotalCost', ui.costTotal);
+  setTextById('lblCostBasal', age.bioBalance.costBasal);
+  setTextById('lblCostSwim', age.bioBalance.costSwim);
+  setTextById('lblCostToxin', age.bioBalance.costToxin);
+  setTextById('lblCostTotal', age.bioBalance.costTotal);
+  setTextById('lblMiniTotalCost', age.bioBalance.costTotal);
 
   const paretoNote = document.getElementById('lblParetoNote');
   if (paretoNote) {
@@ -1368,13 +1813,13 @@ function applyTranslations(): void {
     ui.cultureConditionsTitle,
     'ui-icon ui-icon-sm'
   );
-  setElementWithIcon(
+  setLabelWithIconAndSubtitle(
     document.getElementById('lblParamInitialPop'),
     'petri-colony.png',
     age.params.initialPop,
     'ui-icon ui-icon-sm'
   );
-  setElementWithIcon(
+  setLabelWithIconAndSubtitle(
     document.getElementById('lblParamRivals'),
     'rivals-colonies.png',
     age.params.rivals,
@@ -1418,7 +1863,7 @@ function applyTranslations(): void {
   // Columna derecha del Editor: Encabezado, Pestañas Rápidas y Categorías A..F
   const sectionHeading = document.querySelector<HTMLElement>('.editor-right-col .section-heading');
   if (sectionHeading) {
-    sectionHeading.textContent = age.section1Heading;
+    setHeadingWithParentheticalSubtitle(sectionHeading, age.section1Heading);
   }
 
   setTextById('lblCatTabMetabolism', ui.categoryTabs.metabolism);
@@ -1427,7 +1872,6 @@ function applyTranslations(): void {
   setTextById('lblCatTabReproduction', ui.categoryTabs.reproduction);
   setTextById('lblCatTabInteraction', ui.categoryTabs.interaction);
   setTextById('lblCatTabAdaptation', ui.categoryTabs.adaptation);
-  updateCategoryStepNavText();
 
   const updateCategoryHeader = (
     group: 'metabolism' | 'motility' | 'wall' | 'reproduction' | 'interaction',
@@ -1438,7 +1882,7 @@ function applyTranslations(): void {
     if (!catEl) return;
     const titleSpan = catEl.querySelector<HTMLElement>('.trait-category-title > span:first-child');
     const hintSpan = catEl.querySelector<HTMLElement>('.trait-category-title > span.codon-hint');
-    if (titleSpan) titleSpan.textContent = titleText;
+    setHeadingWithParentheticalSubtitle(titleSpan, titleText);
     if (hintSpan) hintSpan.textContent = hintText;
   };
 
@@ -1451,7 +1895,7 @@ function applyTranslations(): void {
   const adaptCatEl = document.querySelector<HTMLElement>('.trait-category[data-trait-group="adaptation"]');
   if (adaptCatEl) {
     const titleSpan = adaptCatEl.querySelector<HTMLElement>('.trait-category-title > span:first-child');
-    if (titleSpan) titleSpan.textContent = age.categories.adaptation.title;
+    setHeadingWithParentheticalSubtitle(titleSpan, age.categories.adaptation.title);
   }
 
   // Botones de rasgos biológicos (Categorías A..F) adaptados por edad e idioma
@@ -1467,42 +1911,42 @@ function applyTranslations(): void {
       const key = value as MetabolismType;
       const entry = age.traits.metabolism[key];
       if (entry) {
-        setElementWithIcon(titleEl, TRAIT_ICONS.metabolism[key], entry.editorTitle, 'trait-icon');
+        setTraitCardHeaderWithSubtitle(titleEl, TRAIT_ICONS.metabolism[key], entry.editorTitle);
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'motility') {
       const key = value as MotilityType;
       const entry = age.traits.motility[key];
       if (entry) {
-        setElementWithIcon(titleEl, TRAIT_ICONS.motility[key], entry.editorTitle, 'trait-icon');
+        setTraitCardHeaderWithSubtitle(titleEl, TRAIT_ICONS.motility[key], entry.editorTitle);
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'wall') {
       const key = value as WallType;
       const entry = age.traits.wall[key];
       if (entry) {
-        setElementWithIcon(titleEl, TRAIT_ICONS.wall[key], entry.editorTitle, 'trait-icon');
+        setTraitCardHeaderWithSubtitle(titleEl, TRAIT_ICONS.wall[key], entry.editorTitle);
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'reproduction') {
       const key = value as ReproductionType;
       const entry = age.traits.reproduction[key];
       if (entry) {
-        setElementWithIcon(titleEl, TRAIT_ICONS.reproduction[key], entry.editorTitle, 'trait-icon');
+        setTraitCardHeaderWithSubtitle(titleEl, TRAIT_ICONS.reproduction[key], entry.editorTitle);
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'interaction') {
       const key = value as InteractionType;
       const entry = age.traits.interaction[key];
       if (entry) {
-        setElementWithIcon(titleEl, TRAIT_ICONS.interaction[key], entry.editorTitle, 'trait-icon');
+        setTraitCardHeaderWithSubtitle(titleEl, TRAIT_ICONS.interaction[key], entry.editorTitle);
         if (descEl) descEl.innerHTML = entry.editorDesc;
       }
     } else if (category === 'adaptation') {
       const key = value as AdaptationType;
       const entry = age.traits.adaptation[key];
       if (entry) {
-        setElementWithIcon(titleEl, TRAIT_ICONS.adaptation[key], entry.editorTitle, 'trait-icon');
+        setTraitCardHeaderWithSubtitle(titleEl, TRAIT_ICONS.adaptation[key], entry.editorTitle);
         if (descEl) descEl.innerHTML = entry.editorDesc;
         const proEl = btn.querySelector<HTMLElement>('.tag-pro');
         const conEl = btn.querySelector<HTMLElement>('.tag-con');
@@ -1517,7 +1961,7 @@ function applyTranslations(): void {
   // Etiquetas de los sliders cuantitativos vinculados a cada categoría
   const setLinkedSliderLabel = (inputId: string, iconFile: string, labelText: string) => {
     const labelSpan = document.querySelector<HTMLElement>(`label[for="${inputId}"] > span:first-child`);
-    setElementWithIcon(labelSpan, iconFile, labelText, 'ui-icon ui-icon-sm');
+    setLabelWithIconAndSubtitle(labelSpan, iconFile, labelText, 'ui-icon ui-icon-sm');
   };
   setLinkedSliderLabel('rngSize', 'param-size.png', age.params.size);
   setLinkedSliderLabel('rngSpeed', 'param-speed.png', age.params.speed);
@@ -1711,7 +2155,7 @@ btnPause.addEventListener('click', () => {
   syncPauseButtonUI(paused);
 });
 
-const SPEED_STEPS = [1, 2, 4] as const;
+const SPEED_STEPS = [1, 2, 4, 0.5] as const;
 let currentSpeedIdx = 0;
 
 btnSpeed.addEventListener('click', () => {

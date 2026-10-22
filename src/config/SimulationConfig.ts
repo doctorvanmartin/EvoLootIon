@@ -92,6 +92,8 @@ export const SimConfig = {
   PHAGE_BURST_SIZE: 3,              // Nuevos fagos liberados al lisar una bacteria infectada
   PHAGE_SPAWN_COOLDOWN: 0.65,       // Tiempo refractario tras la lisis antes de infectar otra célula
   PHAGE_INFECTED_METABOLIC_DRAIN: 0.55, // ATP/s secuestrado por la maquinaria de replicación vírica
+  PHAGE_CRISPR_DEFENSE_DRAIN: 0.32, // ATP/s adicional invertido en sintetizar nucleasas CRISPR-Cas / restricción
+  PHAGE_CRISPR_CURE_THRESHOLD: 0.38, // Progreso de defensa intracelular necesario para triturar el ADN viral y curarse
 
   MAX_NEUTROPHILS: 6,
   INITIAL_NEUTROPHIL_COUNT: 2,

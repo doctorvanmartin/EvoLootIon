@@ -211,19 +211,32 @@ export class ProceduralRenderer {
     // Destello de daño cuando está siendo atacada o envenenada
     if (b.beingAttackedTimer > 0 && !b.isDying) {
       ctx.beginPath();
-      ctx.arc(0, 0, b.radius * 1.65, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(248, 113, 113, 0.78)';
-      ctx.lineWidth = 2.0;
+      ctx.arc(0, 0, b.radius * 1.55, 0, Math.PI * 2);
+      ctx.strokeStyle =
+        b.combatHitType === 'toxin'
+          ? 'rgba(244, 114, 182, 0.75)'
+          : 'rgba(248, 113, 113, 0.78)';
+      ctx.lineWidth = lowDetail ? 1.5 : 1.9;
       ctx.stroke();
+    }
+
+    // Flujo de fagocitosis / absorción de biomasa cuando una predadora está devorando a una presa
+    if (!lowDetail && b.isAttackingTimer > 0 && !b.isDying) {
+      this.drawPredatorFeedingStream(ctx, b);
     }
 
     // Halo de infección vírica activa (ciclo lítico de bacteriófago en curso)
     if (b.isInfectedByPhage && !b.isDying) {
-      const pulse = 0.88 + Math.sin(b.animPhase * 3.8) * 0.14;
+      const prog = b.phageInfectionProgress;
+      const pulseSpeed = 4.2 + prog * 10.0;
+      const pulse = 0.88 + Math.sin(b.animPhase * pulseSpeed) * (0.12 + prog * 0.08);
       ctx.beginPath();
-      ctx.arc(0, 0, b.radius * 1.52 * pulse, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(192, 132, 252, ${0.45 + b.phageInfectionProgress * 0.45})`;
-      ctx.lineWidth = lowDetail ? 1.3 : 1.7;
+      ctx.arc(0, 0, b.radius * (1.48 + prog * 0.22) * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle =
+        prog > 0.72
+          ? `rgba(244, 114, 182, ${0.55 + prog * 0.4})`
+          : `rgba(192, 132, 252, ${0.45 + prog * 0.45})`;
+      ctx.lineWidth = lowDetail ? 1.4 : 1.85;
       ctx.setLineDash([2.5, 2.5]);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -246,7 +259,38 @@ export class ProceduralRenderer {
       ctx.stroke();
     }
 
+    // Temblor agónico por infección vírica o sacudida por mordisco / pinchazo en combate bacteriano
+    if (b.isInfectedByPhage && !b.isDying) {
+      const tremorAmp = (0.4 + b.phageInfectionProgress * 1.85) * (lowDetail ? 0.5 : 1.0);
+      const jx = Math.sin(b.animPhase * 28.0 + b.id * 1.3) * tremorAmp;
+      const jy = Math.cos(b.animPhase * 33.0 + b.id * 2.1) * tremorAmp;
+      ctx.translate(jx, jy);
+    } else if (
+      b.beingAttackedTimer > 0 &&
+      !b.isDying &&
+      (b.combatHitType === 'bite' || b.combatHitType === 'spikes')
+    ) {
+      const hitShake = (b.beingAttackedTimer / 0.34) * (lowDetail ? 0.6 : 1.35);
+      const jx = Math.sin(b.animPhase * 34.0 + b.id) * hitShake;
+      const jy = Math.cos(b.animPhase * 39.0 + b.id) * hitShake;
+      ctx.translate(jx, jy);
+    }
+
+    // Impulso de embestida frontal cuando la predadora está mordiendo
+    if (b.isAttackingTimer > 0 && !b.isDying) {
+      const lunge = Math.sin(b.animPhase * 24.0) * 1.4;
+      ctx.translate(Math.cos(b.angle) * lunge, Math.sin(b.angle) * lunge);
+    }
+
     ctx.rotate(b.angle);
+
+    // En la fase final del ciclo lítico (70% -> 100%), el soma se hincha y deforma antes de reventar
+    if (b.isInfectedByPhage && !b.isDying && b.phageInfectionProgress > 0.5) {
+      const bloatT = (b.phageInfectionProgress - 0.5) / 0.5;
+      const pulseX = 1 + bloatT * 0.18 + Math.sin(b.animPhase * 19.0) * bloatT * 0.06;
+      const pulseY = 1 + bloatT * 0.22 - Math.sin(b.animPhase * 19.0) * bloatT * 0.06;
+      ctx.scale(pulseX, pulseY);
+    }
 
     const r = b.radius;
     const hue = b.dna.hue;
@@ -260,12 +304,37 @@ export class ProceduralRenderer {
       return;
     }
 
-    // Si está en Lisis Celular (muriendo), dibujar vesículas de desintegración
+    // Si está en Lisis Celular (muriendo), dibujar vesículas de desintegración (y onda de choque si estalló por fagos)
     if (b.isDying && !lowDetail) {
-      const fragCount = 6;
+      if (b.diedFromPhageLysis) {
+        const dp = b.dyingProgress;
+        // Onda expansiva violeta/magenta de rotura por holinas y endolisinas
+        ctx.beginPath();
+        ctx.arc(0, 0, r * (0.9 + dp * 2.6), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(216, 180, 254, ${Math.max(0, (1 - dp) * 0.85)})`;
+        ctx.lineWidth = Math.max(0.8, 2.6 * (1 - dp));
+        ctx.stroke();
+
+        // Estelas radiales de eyección lítica y fragmentos de membrana reventada
+        const burstRays = 8;
+        ctx.beginPath();
+        for (let i = 0; i < burstRays; i++) {
+          const rayAng = (i / burstRays) * Math.PI * 2 + 0.2;
+          const rIn = r * (0.4 + dp * 0.9);
+          const rOut = r * (0.95 + dp * 2.3);
+          ctx.moveTo(Math.cos(rayAng) * rIn, Math.sin(rayAng) * rIn);
+          ctx.lineTo(Math.cos(rayAng) * rOut, Math.sin(rayAng) * rOut);
+        }
+        ctx.strokeStyle = `rgba(192, 132, 252, ${Math.max(0, (1 - dp) * 0.75)})`;
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+      }
+
+      const fragCount = b.diedFromPhageLysis ? 9 : 6;
+      const spreadFactor = b.diedFromPhageLysis ? 1.85 : 1.1;
       for (let i = 0; i < fragCount; i++) {
         const ang = (i / fragCount) * Math.PI * 2 + b.dyingProgress * 1.5;
-        const dist = r * (0.7 + b.dyingProgress * 1.1);
+        const dist = r * (0.7 + b.dyingProgress * spreadFactor);
         ctx.beginPath();
         ctx.arc(
           Math.cos(ang) * dist,
@@ -274,7 +343,10 @@ export class ProceduralRenderer {
           0,
           Math.PI * 2
         );
-        ctx.fillStyle = `hsla(${hue}, 65%, 55%, 0.65)`;
+        ctx.fillStyle =
+          b.diedFromPhageLysis && i % 2 === 0
+            ? `rgba(192, 132, 252, ${Math.max(0.15, 0.78 - b.dyingProgress * 0.6)})`
+            : `hsla(${hue}, 65%, 55%, 0.65)`;
         ctx.fill();
       }
     }
@@ -426,6 +498,26 @@ export class ProceduralRenderer {
       ctx.arc(septumX, -pinchHalfH, Math.max(1.0, r * 0.11), 0, Math.PI * 2);
       ctx.arc(septumX, pinchHalfH, Math.max(1.0, r * 0.11), 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // 7. Escudo de rechazo / rebote en la cubierta celular cuando la bacteria bloquea la adsorción de un fago
+    if (!lowDetail && b.phageDefenseTimer > 0 && !b.isDying) {
+      this.drawPhageDefenseShield(ctx, b, r);
+    }
+
+    // 7b. Victoria inmunitaria intracelular (CRISPR-Cas / enzimas de restricción): onda esmeralda y eyección de la carcasa vacía del fago
+    if (b.phageCuredTimer > 0 && !b.isDying) {
+      this.drawPhageCrisprCureEffect(ctx, b, r, lowDetail);
+    }
+
+    // 8. Bacteriófago T4 anclado en el exterior de la membrana inyectando su ADN y lucha celular
+    if (b.isInfectedByPhage && !b.isDying) {
+      this.drawAdsorbedPhageAttack(ctx, b, r, lowDetail);
+    }
+
+    // 9. Combate directo entre bacterias: mordiscos, chispazos de coraza/pinchos, escudo químico y evasión
+    if (!lowDetail && !b.isDying && (b.beingAttackedTimer > 0 || b.combatDefenseTimer > 0)) {
+      this.drawBacterialCombatEffects(ctx, b, r);
     }
 
     ctx.restore();
@@ -911,23 +1003,120 @@ export class ProceduralRenderer {
     ctx.arc(r * 0.52, -r * 0.04, 0.7, 0, Math.PI * 2);
     ctx.fill();
 
-    // 7. Ensamblaje intracelular de cápsides icosaédricas durante el ciclo lítico de un bacteriófago
+    // 7. Ensamblaje intracelular de cápsides icosaédricas y lucha genómica durante el ciclo lítico de un bacteriófago
     if (b.isInfectedByPhage) {
-      const prog = Math.min(1, Math.max(0.15, b.phageInfectionProgress));
-      const virionCount = prog > 0.66 ? 3 : prog > 0.33 ? 2 : 1;
+      const prog = Math.min(1, Math.max(0.05, b.phageInfectionProgress));
       ctx.save();
-      ctx.fillStyle = `rgba(192, 132, 252, ${0.65 + prog * 0.3})`;
-      ctx.strokeStyle = 'rgba(243, 232, 255, 0.9)';
-      ctx.lineWidth = 0.7;
+
+      // Chorro de ADN vírico inyectado desde el punto de adsorción en la membrana hacia el nucleoide
+      const halfW = this.getSomaHalfWidth(
+        traits.metabolism,
+        r,
+        morphology,
+        b.dividingProgress
+      );
+      const halfH = this.getSomaHalfHeight(
+        traits.metabolism,
+        r,
+        morphology,
+        b.dividingProgress
+      );
+      const hitAng = b.phageAdsorptionAngle;
+      const entryX = Math.cos(hitAng) * halfW * 0.92;
+      const entryY = Math.sin(hitAng) * halfH * 0.92;
+      const injectReach = Math.min(1, prog * 2.2);
+
+      // Filamento zigzagueante de genoma vírico invadiendo el citoplasma
+      ctx.beginPath();
+      ctx.moveTo(entryX, entryY);
+      const midX =
+        entryX * (1 - injectReach * 0.55) +
+        Math.sin(b.animPhase * 9.0) * r * 0.18;
+      const midY =
+        entryY * (1 - injectReach * 0.55) +
+        Math.cos(b.animPhase * 9.0) * r * 0.18;
+      const tipX = entryX * (1 - injectReach * 0.95);
+      const tipY = entryY * (1 - injectReach * 0.95);
+      ctx.quadraticCurveTo(midX, midY, tipX, tipY);
+      ctx.strokeStyle = `rgba(56, 189, 248, ${0.85 - prog * 0.35})`;
+      ctx.lineWidth = Math.max(1.0, r * 0.12);
+      ctx.stroke();
+
+      // Vórtice de secuestro ribosomal en el centro celular
+      ctx.beginPath();
+      ctx.arc(
+        0,
+        0,
+        r * (0.22 + prog * 0.36),
+        b.animPhase * 3.2,
+        b.animPhase * 3.2 + Math.PI * 1.35
+      );
+      ctx.strokeStyle = `rgba(192, 132, 252, ${0.35 + prog * 0.45})`;
+      ctx.lineWidth = Math.max(0.9, r * 0.1);
+      ctx.stroke();
+
+      // 2ª Línea de Defensa (CRISPR-Cas / Enzimas de Restricción): arcos y tijeras moleculares
+      // dorado-esmeralda atacando el ADN vírico inyectado
+      if (b.phageCrisprProgress > 0.04) {
+        const cp = Math.min(1, b.phageCrisprProgress);
+        const casRadius = r * (0.28 + cp * 0.32);
+        const casAngle = -b.animPhase * 6.5;
+
+        // Anillo enzimático contra-rotatorio de endonucleasas Cas
+        ctx.beginPath();
+        ctx.arc(0, 0, casRadius, casAngle, casAngle + Math.PI * (0.75 + cp * 0.75));
+        ctx.strokeStyle = `rgba(52, 211, 153, ${0.55 + cp * 0.4})`;
+        ctx.lineWidth = Math.max(1.1, r * 0.12);
+        ctx.stroke();
+
+        // Destellos de corte ("tijeras moleculares") sobre el filamento de ADN invasor
+        const cutX =
+          entryX * (1 - injectReach * 0.5) +
+          Math.cos(b.animPhase * 16.0) * r * 0.12;
+        const cutY =
+          entryY * (1 - injectReach * 0.5) +
+          Math.sin(b.animPhase * 16.0) * r * 0.12;
+        const slashLen = Math.max(1.8, r * (0.22 + cp * 0.15));
+        const slashAng = b.animPhase * 12.0;
+        ctx.beginPath();
+        ctx.moveTo(
+          cutX - Math.cos(slashAng) * slashLen,
+          cutY - Math.sin(slashAng) * slashLen
+        );
+        ctx.lineTo(
+          cutX + Math.cos(slashAng) * slashLen,
+          cutY + Math.sin(slashAng) * slashLen
+        );
+        ctx.moveTo(
+          cutX - Math.cos(slashAng + 1.1) * slashLen,
+          cutY - Math.sin(slashAng + 1.1) * slashLen
+        );
+        ctx.lineTo(
+          cutX + Math.cos(slashAng + 1.1) * slashLen,
+          cutY + Math.sin(slashAng + 1.1) * slashLen
+        );
+        ctx.strokeStyle = `rgba(250, 204, 21, ${0.7 + cp * 0.3})`;
+        ctx.lineWidth = 1.15;
+        ctx.stroke();
+      }
+
+      // Cápsides hijas ensamblándose y agitándose dentro del citoplasma antes de reventar la pared
+      const virionCount = prog > 0.72 ? 4 : prog > 0.45 ? 3 : prog > 0.2 ? 2 : 1;
+      ctx.fillStyle = `rgba(168, 85, 247, ${0.7 + prog * 0.28})`;
+      ctx.strokeStyle = 'rgba(243, 232, 255, 0.95)';
+      ctx.lineWidth = 0.75;
       for (let i = 0; i < virionCount; i++) {
-        const ang = b.animPhase * 0.9 + (i * Math.PI * 2) / 3;
-        const dist = r * 0.32 * prog;
+        const ang =
+          b.animPhase * (1.4 + prog * 2.2) + (i * Math.PI * 2) / virionCount;
+        const dist =
+          r * (0.18 + prog * 0.34) +
+          Math.sin(b.animPhase * 8.0 + i * 2.1) * r * 0.08 * prog;
         const vx = Math.cos(ang) * dist;
         const vy = Math.sin(ang) * dist;
-        const cr = Math.max(1.2, r * 0.17);
+        const cr = Math.max(1.3, r * (0.15 + prog * 0.06));
         ctx.beginPath();
         for (let k = 0; k < 6; k++) {
-          const ha = (k / 6) * Math.PI * 2;
+          const ha = (k / 6) * Math.PI * 2 + ang;
           const px = vx + Math.cos(ha) * cr;
           const py = vy + Math.sin(ha) * cr;
           if (k === 0) ctx.moveTo(px, py);
@@ -937,8 +1126,484 @@ export class ProceduralRenderer {
         ctx.fill();
         ctx.stroke();
       }
+
+      // Grietas internas de presión lítica cuando está a punto de estallar (> 70%)
+      if (prog > 0.7) {
+        const crackAlpha = ((prog - 0.7) / 0.3) * 0.85;
+        ctx.strokeStyle = `rgba(244, 114, 182, ${crackAlpha})`;
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        for (let c = 0; c < 4; c++) {
+          const ca = (c / 4) * Math.PI * 2 + b.animPhase * 0.5;
+          ctx.moveTo(Math.cos(ca) * r * 0.3, Math.sin(ca) * r * 0.3);
+          ctx.lineTo(Math.cos(ca) * halfW * 0.98, Math.sin(ca) * halfH * 0.98);
+        }
+        ctx.stroke();
+      }
+
       ctx.restore();
     }
+  }
+
+  /**
+   * Dibuja un arco de repulsión defensiva sobre la envoltura celular cuando la pared
+   * (Capa S, Cápsula o peptidoglicano grueso) bloquea la adsorción de un bacteriófago.
+   */
+  private static drawPhageDefenseShield(
+    ctx: CanvasRenderingContext2D,
+    b: Bacteria,
+    r: number
+  ): void {
+    const t = Math.min(1, b.phageDefenseTimer / 0.45);
+    const halfW = this.getSomaHalfWidth(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const halfH = this.getSomaHalfHeight(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const ang = b.phageDefenseAngle;
+    const shieldDist = Math.hypot(
+      Math.cos(ang) * halfW,
+      Math.sin(ang) * halfH
+    ) + 2.5 + (1 - t) * 4.5;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, shieldDist, ang - 0.65, ang + 0.65);
+    ctx.strokeStyle = `rgba(56, 189, 248, ${t * 0.92})`;
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    // Chispas de rebote del virión rechazado
+    const sx = Math.cos(ang) * shieldDist;
+    const sy = Math.sin(ang) * shieldDist;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2.2 * t, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(224, 242, 254, ${t * 0.95})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Dibuja la victoria inmunitaria de 2ª línea (CRISPR-Cas / Enzimas de restricción):
+   * un pulso esmeralda-dorado limpia el citoplasma y la carcasa proteica vacía del
+   * bacteriófago sale despedida y girando lejos de la pared celular.
+   */
+  private static drawPhageCrisprCureEffect(
+    ctx: CanvasRenderingContext2D,
+    b: Bacteria,
+    r: number,
+    lowDetail: boolean
+  ): void {
+    const t = Math.min(1, b.phageCuredTimer / 0.85); // 1 -> 0 a medida que termina la animación
+    const elapsed = 1 - t;
+
+    // 1. Halo de purga inmunitaria CRISPR-Cas alrededor de la bacteria
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, r * (1.05 + elapsed * 0.95), 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(52, 211, 153, ${t * 0.9})`;
+    ctx.lineWidth = lowDetail ? 1.5 : 2.1;
+    ctx.stroke();
+
+    if (lowDetail) {
+      ctx.restore();
+      return;
+    }
+
+    // 2. Carcasa vacía del bacteriófago ("fantasma proteico") saliendo despedida y dando vueltas
+    const halfW = this.getSomaHalfWidth(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const halfH = this.getSomaHalfHeight(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const ang = b.phageAdsorptionAngle;
+    const pr = SimConfig.PHAGE_RADIUS;
+    const ejectDist = elapsed * (r * 1.45 + 14);
+    const ex = Math.cos(ang) * (halfW + ejectDist);
+    const ey = Math.sin(ang) * (halfH + ejectDist);
+
+    ctx.translate(ex, ey);
+    ctx.rotate(ang + Math.PI * 0.5 + elapsed * 5.2);
+    ctx.globalAlpha = t * 0.9;
+
+    // Vaina encogida y cápside vacía desactivada
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.9)';
+    ctx.fillStyle = 'rgba(71, 85, 105, 0.35)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.rect(-pr * 0.3, -pr * 0.75, pr * 0.6, pr * 0.75);
+    ctx.fill();
+    ctx.stroke();
+
+    const headY = -pr * 1.55;
+    const hx = pr * 0.88;
+    const hy = pr * 0.95;
+    ctx.beginPath();
+    ctx.moveTo(0, headY - hy);
+    ctx.lineTo(hx, headY - hy * 0.42);
+    ctx.lineTo(hx, headY + hy * 0.42);
+    ctx.lineTo(0, headY + hy * 0.85);
+    ctx.lineTo(-hx, headY + hy * 0.42);
+    ctx.lineTo(-hx, headY - hy * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza el bacteriófago T4 anclado en el exterior de la pared bacteriana durante todo
+   * el ciclo lítico: muestra el agarre de sus fibras caudales, la contracción de la vaina,
+   * la aguja perforando la membrana para inyectar el ADN (vaciando la cápside progresivamente)
+   * y los chispazos de lucha en el punto de perforación.
+   */
+  private static drawAdsorbedPhageAttack(
+    ctx: CanvasRenderingContext2D,
+    b: Bacteria,
+    r: number,
+    lowDetail: boolean
+  ): void {
+    const prog = Math.min(1, Math.max(0, b.phageInfectionProgress));
+    const halfW = this.getSomaHalfWidth(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const halfH = this.getSomaHalfHeight(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const ang = b.phageAdsorptionAngle;
+    const wallX = Math.cos(ang) * halfW;
+    const wallY = Math.sin(ang) * halfH;
+    const pr = SimConfig.PHAGE_RADIUS;
+
+    if (lowDetail) {
+      // En vista alejada, mostrar el virión anclado en el borde y un destello pulsante en el punto de ataque
+      const px = wallX + Math.cos(ang) * pr * 1.1;
+      const py = wallY + Math.sin(ang) * pr * 1.1;
+      ctx.fillStyle = 'rgba(192, 132, 252, 0.95)';
+      ctx.beginPath();
+      ctx.arc(px, py, pr * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(wallX, wallY);
+    // Orientar el eje +Y local del fago apuntando hacia el interior de la bacteria (-ang)
+    ctx.rotate(ang + Math.PI * 0.5);
+
+    // Oscilación de forcejeo entre el fago anclado y la sacudida de la membrana bacteriana
+    const struggleWobble =
+      Math.sin(b.animPhase * 22.0) * 0.14 * (1 - prog * 0.4);
+    ctx.rotate(struggleWobble);
+
+    // Contracción de la vaina caudal durante la primera fase de inyección (0 -> 35% del ciclo)
+    const injectionCompression = Math.min(1, prog / 0.35);
+    const sheathLen = pr * (1.15 - injectionCompression * 0.42);
+    const baseY = 0; // En contacto directo con la pared celular
+
+    // 1. Anillo de perforación / herida en la membrana con chispazos de lucha bioquímica
+    const woundPulse = 0.7 + Math.sin(b.animPhase * 25.0) * 0.3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, pr * 0.85 * woundPulse, pr * 0.38, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(56, 189, 248, ${0.55 + (1 - prog) * 0.35})`;
+    ctx.fill();
+
+    // 2. Aguja del tubo caudal perforando hacia el interior celular (+Y) e inyectando ADN
+    const needleDepth = pr * (0.45 + injectionCompression * 0.85);
+    ctx.beginPath();
+    ctx.moveTo(0, -sheathLen * 0.5);
+    ctx.lineTo(0, needleDepth);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.35;
+    ctx.stroke();
+
+    // Pulsos luminosos de ADN bajando por el canal caudal
+    if (prog < 0.75) {
+      const pulseY = -sheathLen + ((b.animPhase * 3.8) % 1) * (sheathLen + needleDepth);
+      ctx.beginPath();
+      ctx.arc(0, pulseY, 1.3, 0, Math.PI * 2);
+      ctx.fillStyle = '#e0f2fe';
+      ctx.fill();
+    }
+
+    // 3. Fibras caudales (6 patas clavadas con fuerza en la pared bacteriana)
+    ctx.strokeStyle = 'rgba(216, 180, 254, 0.95)';
+    ctx.lineWidth = 0.9;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const gripSpread = 0.65 + i * 0.38;
+        const kneeX = side * pr * (0.72 + i * 0.24);
+        const kneeY = -pr * (0.35 + (1 - injectionCompression) * 0.25 - i * 0.06);
+        const tipX = side * pr * gripSpread;
+        const tipY = pr * (0.12 + i * 0.08);
+        ctx.moveTo(side * pr * 0.24, baseY - pr * 0.08);
+        ctx.lineTo(kneeX, kneeY);
+        ctx.lineTo(tipX, tipY);
+      }
+    }
+    ctx.stroke();
+
+    // 4. Vaina helicoidal contraída con anillos transversales de compresión
+    ctx.fillStyle = 'rgba(147, 51, 234, 0.95)';
+    ctx.strokeStyle = 'rgba(233, 213, 255, 0.95)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.rect(-pr * 0.34, -sheathLen, pr * 0.68, sheathLen);
+    ctx.fill();
+    ctx.stroke();
+
+    // Placa basal hexagonal anclada a los receptores de membrana
+    ctx.beginPath();
+    ctx.moveTo(-pr * 0.56, baseY);
+    ctx.lineTo(pr * 0.56, baseY);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.25;
+    ctx.stroke();
+
+    // 5. Cápside icosaédrica exterior (se vacía de ADN luminiscente a medida que lo inyecta en la bacteria)
+    const headY = -sheathLen - pr * 0.88;
+    const hx = pr * 0.94;
+    const hy = pr * 1.05;
+    ctx.beginPath();
+    ctx.moveTo(0, headY - hy);
+    ctx.lineTo(hx, headY - hy * 0.42);
+    ctx.lineTo(hx, headY + hy * 0.42);
+    ctx.lineTo(0, headY + hy * 0.85);
+    ctx.lineTo(-hx, headY + hy * 0.42);
+    ctx.lineTo(-hx, headY - hy * 0.42);
+    ctx.closePath();
+
+    // Al vaciarse el genoma vírico hacia el citoplasma, la cápside pasa de violeta brillante a carcasa translúcida
+    const capsidFillAlpha = Math.max(0.28, 0.92 - prog * 0.62);
+    ctx.fillStyle = `rgba(126, 34, 206, ${capsidFillAlpha})`;
+    ctx.fill();
+    ctx.lineWidth = 0.95;
+    ctx.strokeStyle = 'rgba(233, 213, 255, 0.95)';
+    ctx.stroke();
+
+    // Brillo del ADN remanente dentro de la cabeza del fago (disminuye con prog)
+    if (prog < 0.85) {
+      const dnaLeft = Math.max(0, 1 - prog * 1.2);
+      ctx.beginPath();
+      ctx.arc(0, headY + hy * 0.15 * (1 - dnaLeft), pr * 0.48 * dnaLeft, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(56, 189, 248, ${0.75 * dnaLeft})`;
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Dibuja en coordenadas relativas al centro de la bacteria predadora el chorro de
+   * fagocitosis (vesículas de biomasa del color de la presa y arco de desgarro)
+   * fluyendo desde la presa hacia el polo frontal del depredador.
+   */
+  private static drawPredatorFeedingStream(
+    ctx: CanvasRenderingContext2D,
+    predator: Bacteria
+  ): void {
+    const dx = predator.combatTargetX - predator.x;
+    const dy = predator.combatTargetY - predator.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1 || dist > predator.radius * 4.5) return;
+
+    const dirX = dx / dist;
+    const dirY = dy / dist;
+    const mouthDist = predator.radius * 1.15;
+    const mouthX = Math.cos(predator.angle) * mouthDist;
+    const mouthY = Math.sin(predator.angle) * mouthDist;
+    const contactX = dirX * Math.min(dist * 0.72, predator.radius * 1.65);
+    const contactY = dirY * Math.min(dist * 0.72, predator.radius * 1.65);
+
+    ctx.save();
+    // 1. Filamento lítico de succión / desgarro entre la presa y las fauces
+    ctx.beginPath();
+    ctx.moveTo(contactX, contactY);
+    ctx.lineTo(mouthX, mouthY);
+    ctx.strokeStyle = `hsla(${predator.combatTargetHue}, 92%, 68%, 0.75)`;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // 2. Tres corpúsculos de citoplasma arrancados viajando hacia la boca del depredador
+    for (let i = 0; i < 3; i++) {
+      const flowT = ((predator.animPhase * 4.5 + i * 0.33) % 1);
+      const px = contactX + (mouthX - contactX) * flowT;
+      const py = contactY + (mouthY - contactY) * flowT;
+      const dropR = Math.max(1.1, predator.radius * 0.16 * (1 - flowT * 0.35));
+      ctx.beginPath();
+      ctx.arc(px, py, dropR, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${predator.combatTargetHue}, 95%, 72%, 0.92)`;
+      ctx.fill();
+    }
+
+    // 3. Destello de mordisco en el punto de contacto
+    const slashAng = predator.animPhase * 16.0;
+    const slashLen = Math.max(2.4, predator.radius * 0.36);
+    ctx.beginPath();
+    ctx.moveTo(
+      contactX - Math.cos(slashAng) * slashLen,
+      contactY - Math.sin(slashAng) * slashLen
+    );
+    ctx.lineTo(
+      contactX + Math.cos(slashAng) * slashLen,
+      contactY + Math.sin(slashAng) * slashLen
+    );
+    ctx.moveTo(
+      contactX - Math.cos(slashAng + 1.2) * slashLen,
+      contactY - Math.sin(slashAng + 1.2) * slashLen
+    );
+    ctx.lineTo(
+      contactX + Math.cos(slashAng + 1.2) * slashLen,
+      contactY + Math.sin(slashAng + 1.2) * slashLen
+    );
+    ctx.strokeStyle = 'rgba(254, 202, 202, 0.92)';
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza los efectos de lucha cuerpo a cuerpo y defensa en el punto exacto de impacto
+   * sobre la bacteria atacada: herida de mordisco, chispas de rebote por coraza/pinchos,
+   * estela de evasión por cápsula/espiroqueta y escudo de neutralización química.
+   */
+  private static drawBacterialCombatEffects(
+    ctx: CanvasRenderingContext2D,
+    b: Bacteria,
+    r: number
+  ): void {
+    const halfW = this.getSomaHalfWidth(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const halfH = this.getSomaHalfHeight(
+      b.dna.traits.metabolism,
+      r,
+      b.dna.referenceSpecies?.morphology,
+      b.dividingProgress
+    );
+    const hitAng = b.combatAttackerAngle;
+    const wallX = Math.cos(hitAng) * halfW;
+    const wallY = Math.sin(hitAng) * halfH;
+    const wallDist = Math.hypot(wallX, wallY);
+
+    ctx.save();
+
+    // A. Efecto en el punto de impacto según el tipo de ataque recibido (mordisco, pinchos o toxina)
+    if (b.beingAttackedTimer > 0) {
+      const hitAlpha = Math.min(1, b.beingAttackedTimer / 0.34);
+      if (b.combatHitType === 'bite') {
+        // Muesca / desgarro carmesí en el borde mordido y gotas de lisis saltando
+        ctx.beginPath();
+        ctx.arc(wallX, wallY, Math.max(2.0, r * 0.28), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(239, 68, 68, ${hitAlpha * 0.78})`;
+        ctx.fill();
+
+        for (let i = -1; i <= 1; i++) {
+          const spAng = hitAng + i * 0.42 + Math.sin(b.animPhase * 20 + i) * 0.15;
+          const spDist = wallDist + 2.5 + ((b.animPhase * 12 + i * 0.3) % 1) * (r * 0.55);
+          ctx.beginPath();
+          ctx.arc(
+            Math.cos(spAng) * spDist,
+            Math.sin(spAng) * spDist,
+            Math.max(0.9, r * 0.11),
+            0,
+            Math.PI * 2
+          );
+          ctx.fillStyle = `hsla(${b.dna.hue}, 90%, 70%, ${hitAlpha * 0.9})`;
+          ctx.fill();
+        }
+      } else if (b.combatHitType === 'spikes') {
+        // Destello punzante blanco-ámbar cuando se pincha contra Pinchos Calcáreos o Capa S
+        const sparkLen = Math.max(2.6, r * 0.42);
+        ctx.strokeStyle = `rgba(253, 224, 71, ${hitAlpha * 0.95})`;
+        ctx.lineWidth = 1.45;
+        ctx.beginPath();
+        for (let i = -1; i <= 1; i++) {
+          const sa = hitAng + i * 0.38;
+          ctx.moveTo(wallX, wallY);
+          ctx.lineTo(
+            wallX + Math.cos(sa) * sparkLen,
+            wallY + Math.sin(sa) * sparkLen
+          );
+        }
+        ctx.stroke();
+      } else if (b.combatHitType === 'toxin') {
+        // Burbujeo corrosivo magenta sobre la membrana expuesta a bacteriocinas
+        for (let i = 0; i < 3; i++) {
+          const ba = hitAng + (i - 1) * 0.65 + Math.sin(b.animPhase * 8 + i) * 0.25;
+          const bx = Math.cos(ba) * halfW * 0.96;
+          const by = Math.sin(ba) * halfH * 0.96;
+          ctx.beginPath();
+          ctx.arc(bx, by, Math.max(1.1, r * 0.14), 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(244, 114, 182, ${hitAlpha * 0.85})`;
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // B. Respuesta defensiva visible según los atributos de la bacteria defensora
+    if (b.combatDefenseTimer > 0) {
+      const defAlpha = Math.min(1, b.combatDefenseTimer / 0.34);
+      if (b.combatDefenseType === 'armor_reflect') {
+        // Escudo cristalino / espinoso ámbar-acero que refleja el mordisco al atacante
+        ctx.beginPath();
+        ctx.arc(0, 0, wallDist + 3.0, hitAng - 0.72, hitAng + 0.72);
+        ctx.strokeStyle = `rgba(251, 191, 36, ${defAlpha * 0.95})`;
+        ctx.lineWidth = 2.3;
+        ctx.stroke();
+      } else if (b.combatDefenseType === 'capsule_slip') {
+        // Estelas hidrodinámicas de glicocálix / espiroqueta escurriéndose del mordisco
+        ctx.strokeStyle = `rgba(56, 189, 248, ${defAlpha * 0.85})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, wallDist + 3.8, hitAng + 0.35, hitAng + 1.35);
+        ctx.moveTo(
+          Math.cos(hitAng - 0.35) * (wallDist + 3.8),
+          Math.sin(hitAng - 0.35) * (wallDist + 3.8)
+        );
+        ctx.arc(0, 0, wallDist + 3.8, hitAng - 0.35, hitAng - 1.35, true);
+        ctx.stroke();
+      } else if (b.combatDefenseType === 'toxin_shield') {
+        // Barrera de neutralización química en el flanco expuesto a las bacteriocinas
+        ctx.beginPath();
+        ctx.arc(0, 0, wallDist + 2.6, hitAng - 0.85, hitAng + 0.85);
+        ctx.strokeStyle = `rgba(52, 211, 153, ${defAlpha * 0.85})`;
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([3, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    ctx.restore();
   }
 
   private static drawCapsuleHalo(

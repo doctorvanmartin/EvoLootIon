@@ -35,6 +35,16 @@ export interface AgeAdaptedContent {
   paretoTitle: string;
   paretoBody: string;
   substrateLabel: string;
+  bioBalance: {
+    title: string;
+    costBasal: string;
+    costSwim: string;
+    costToxin: string;
+    costTotal: string;
+    efficiencyHigh: string;
+    efficiencyModerate: string;
+    efficiencyDanger: string;
+  };
   categories: {
     metabolism: { title: string; locusHint: string };
     motility: { title: string; locusHint: string };
@@ -88,10 +98,14 @@ export interface LocaleBundle {
     editorTitle: string;
     btnReturnToCulture: string;
     microscopeTitle: string;
-    colorGeneBadge: string;
     dnaSequenceBadge: string;
     genePrefix: string;
     codingStrandTitle: string;
+    editDnaBtn: string;
+    editDnaDoneBtn: string;
+    editDnaTitle: string;
+    editDnaPlaceholder: string;
+    editDnaValid: string;
     copyDnaBtn: string;
     copyDnaCopied: string;
     copyDnaTitle: string;
@@ -207,7 +221,11 @@ export interface LocaleBundle {
       stateVegetative: string;
       stateSpore: string;
       stateToxinActive: string;
+      statePredating: string;
+      stateUnderAttack: string;
       stateInfectedPhage: string;
+      stateFightingPhage: string;
+      statePhageCured: string;
       stateDying: string;
       stateDividing: string;
       gen: string;
@@ -248,10 +266,14 @@ const ES_BUNDLE: LocaleBundle = {
     editorTitle: 'Editor Genómico y Fenotípico',
     btnReturnToCulture: 'Volver al Cultivo ×',
     microscopeTitle: 'Microscopio Electrónico',
-    colorGeneBadge: 'Gen Color',
     dnaSequenceBadge: 'Secuencia ADN',
     genePrefix: 'Gen',
     codingStrandTitle: 'Cadena Codificante (ADN)',
+    editDnaBtn: 'Editar',
+    editDnaDoneBtn: 'Listo',
+    editDnaTitle: 'Escribir o pegar directamente la cadena codificante de ADN',
+    editDnaPlaceholder: 'ATG-SAP-S9-FLA-V30-GRP-A40-BIN-P11-BAC-T20-NON-H155-TAG',
+    editDnaValid: 'ADN aplicado: {taxonomy} ({strand})',
     copyDnaBtn: 'Copiar',
     copyDnaCopied: '¡Copiado!',
     copyDnaTitle: 'Copiar cadena codificante al portapapeles',
@@ -354,7 +376,7 @@ const ES_BUNDLE: LocaleBundle = {
       btnEditorDna: 'Editor ADN',
       btnPause: 'Pausar',
       btnResume: 'Reanudar',
-      btnSpeedTitle: 'Cambiar velocidad (1x / 2x / 4x)',
+      btnSpeedTitle: 'Cambiar velocidad (1x / 2x / 4x / 0,5x)',
       lightLabel: 'Luz',
       btnFeed: 'Añadir sustrato',
       btnRemoveSubstrate: 'Retirar sustrato',
@@ -384,7 +406,11 @@ const ES_BUNDLE: LocaleBundle = {
       stateVegetative: 'Vegetativa',
       stateSpore: 'Endospora',
       stateToxinActive: 'Química Activa',
+      statePredating: 'Fagocitando presa',
+      stateUnderAttack: 'En combate / Defendiéndose',
       stateInfectedPhage: 'Infectada (Fago T4)',
+      stateFightingPhage: 'Defensa CRISPR vs Fago',
+      statePhageCured: '¡Fago neutralizado (CRISPR)!',
       stateDying: 'Muriendo (Lisis)',
       stateDividing: 'Dividiéndose',
       gen: 'Gen',
@@ -409,6 +435,16 @@ const ES_BUNDLE: LocaleBundle = {
       paretoBody:
         'Si haces un bichito gigante, rapidísimo y con muchas armas, ¡tendrá muchísima hambre todo el rato y se quedará sin energía si hay poca comida!',
       substrateLabel: 'Comida',
+      bioBalance: {
+        title: 'Energía y Hambre',
+        costBasal: 'Cuerpo y escudo:',
+        costSwim: 'Gasto al nadar:',
+        costToxin: 'Veneno / Imanes:',
+        costTotal: 'Hambre total:',
+        efficiencyHigh: 'Come poquito',
+        efficiencyModerate: 'Hambre normal',
+        efficiencyDanger: '¡Mucha hambre!',
+      },
       categories: {
         metabolism: {
           title: 'A. ¿Cómo come y qué forma tiene? (Metabolismo)',
@@ -439,7 +475,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Nombre de tu bichito',
         initialPop: 'Bichitos por Familia (Ejemplares)',
         rivals: 'Rivales aleatorias',
-        size: 'Tamaño del Cuerpo (Tamaño Celular · Más grande = más hambre)',
+        size: 'Tamaño del Cuerpo (Tamaño medio: más grande = más reserva y hambre)',
         speed: 'Fuerza al Nadar (Velocidad Efectiva)',
         armor: 'Dureza del Escudo (Armadura de Pared)',
         perception: 'Súper olfato (más alcance gasta más energía)',
@@ -648,6 +684,16 @@ const ES_BUNDLE: LocaleBundle = {
       paretoBody:
         'Cada habilidad cuesta energía (ATP). Si creas una bacteria enorme, rapidísima y llena de defensas, gastará tanta energía por segundo que morirá de hambre cuando escasee la comida.',
       substrateLabel: 'Comida',
+      bioBalance: {
+        title: 'Balance de Energía',
+        costBasal: 'Mantenimiento del cuerpo:',
+        costSwim: 'Energía al nadar:',
+        costToxin: 'Defensa química / Imán:',
+        costTotal: 'Gasto total:',
+        efficiencyHigh: 'Bajo gasto',
+        efficiencyModerate: 'Gasto medio',
+        efficiencyDanger: '¡Gasta mucho!',
+      },
       categories: {
         metabolism: {
           title: 'A. ¿Cómo consigue energía y qué forma tiene? (Metabolismo)',
@@ -678,7 +724,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Nombre de tu bacteria',
         initialPop: 'Ejemplares por Colonia',
         rivals: 'Colonias Rivales Aleatorias',
-        size: 'Tamaño del Cuerpo (Tamaño Celular · Más grande = más reserva y gasto)',
+        size: 'Tamaño del Cuerpo (Tamaño medio: más reserva y gasto)',
         speed: 'Potencia del Motor (Velocidad Efectiva Real)',
         armor: 'Dureza de la Armadura (Reduce el daño recibido)',
         perception: 'Olfato químico (más alcance = más gasto basal)',
@@ -887,6 +933,16 @@ const ES_BUNDLE: LocaleBundle = {
       paretoBody:
         'Toda adaptación tiene un coste metabólico en ATP (Ley de Kleiber). Una bacteria gigante, veloz y armada consumirá tanta energía que morirá de inanición si escasea el sustrato.',
       substrateLabel: 'Sustrato',
+      bioBalance: {
+        title: 'Balance de Energía (ATP)',
+        costBasal: 'Metabolismo Basal (Cuerpo + Pared + Mutación):',
+        costSwim: 'Gasto al Nadar a Velocidad Crucero:',
+        costToxin: 'Fábrica de Veneno / Imanes Químicos:',
+        costTotal: 'Consumo Total Estimado:',
+        efficiencyHigh: 'Alta Eficiencia',
+        efficiencyModerate: 'Gasto Moderado',
+        efficiencyDanger: 'Riesgo Inanición',
+      },
       categories: {
         metabolism: {
           title: 'A. ¿Cómo se alimenta y qué forma tiene? (Metabolismo y Tamaño)',
@@ -917,7 +973,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Nombre de tu cepa',
         initialPop: 'Ejemplares por Cepa',
         rivals: 'Cepas Rivales Aleatorias',
-        size: 'Tamaño Celular (Más grande = mayor reserva, pero más gasto basal)',
+        size: 'Tamaño Celular (Tamaño medio: más reserva y gasto basal)',
         speed: 'Potencia Locomotora (Velocidad Efectiva Real)',
         armor: 'Armadura de Membrana (Mitigación de daño físico y químico)',
         perception: 'Quimiotaxis (más alcance = más gasto basal)',
@@ -1126,6 +1182,16 @@ const ES_BUNDLE: LocaleBundle = {
       paretoBody:
         'Una bacteria muy rápida, grande y armada sufrirá un drenaje metabólico de ATP altísimo y colapsará por inanición cuando el sustrato escasee.',
       substrateLabel: 'Sustrato',
+      bioBalance: {
+        title: 'Balance de Energía (ATP)',
+        costBasal: 'Metabolismo Basal (Cuerpo + Pared + Mutación):',
+        costSwim: 'Gasto al Nadar a Velocidad Crucero:',
+        costToxin: 'Fábrica de Veneno / Imanes Químicos:',
+        costTotal: 'Consumo Total Estimado:',
+        efficiencyHigh: 'Alta Eficiencia',
+        efficiencyModerate: 'Gasto Moderado',
+        efficiencyDanger: 'Riesgo Inanición',
+      },
       categories: {
         metabolism: {
           title: 'A. Metabolismo, Nutrición y Tamaño (Morfología Base)',
@@ -1156,7 +1222,7 @@ const ES_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Nombre de la cepa',
         initialPop: 'Inóculo Inicial por Cepa',
         rivals: 'Poblaciones Competidoras Aleatorias',
-        size: 'Radio Celular (Codón S · Escalado alométrico de Kleiber)',
+        size: 'Radio Celular (Radio medio: más reserva y coste basal)',
         speed: 'Potencia Locomotora (Codón V · Velocidad efectiva)',
         armor: 'Armadura de Membrana (Codón A · Reducción de lisis)',
         perception: 'Quimiotaxis (P · mantenimiento de receptores)',
@@ -1360,10 +1426,14 @@ const EN_BUNDLE: LocaleBundle = {
     editorTitle: 'Genomic & Phenotypic Editor',
     btnReturnToCulture: 'Back to Culture ×',
     microscopeTitle: 'Electron Microscope',
-    colorGeneBadge: 'Color Gene',
     dnaSequenceBadge: 'DNA Sequence',
     genePrefix: 'Gene',
     codingStrandTitle: 'Coding Strand (DNA)',
+    editDnaBtn: 'Edit',
+    editDnaDoneBtn: 'Done',
+    editDnaTitle: 'Type or paste the DNA coding strand directly',
+    editDnaPlaceholder: 'ATG-SAP-S9-FLA-V30-GRP-A40-BIN-P11-BAC-T20-NON-H155-TAG',
+    editDnaValid: 'DNA applied: {taxonomy} ({strand})',
     copyDnaBtn: 'Copy',
     copyDnaCopied: 'Copied!',
     copyDnaTitle: 'Copy coding strand to clipboard',
@@ -1466,7 +1536,7 @@ const EN_BUNDLE: LocaleBundle = {
       btnEditorDna: 'DNA Editor',
       btnPause: 'Pause',
       btnResume: 'Resume',
-      btnSpeedTitle: 'Cycle simulation speed (1x / 2x / 4x)',
+      btnSpeedTitle: 'Cycle simulation speed (1x / 2x / 4x / 0.5x)',
       lightLabel: 'Light',
       btnFeed: 'Add substrate',
       btnRemoveSubstrate: 'Remove substrate',
@@ -1496,7 +1566,11 @@ const EN_BUNDLE: LocaleBundle = {
       stateVegetative: 'Vegetative',
       stateSpore: 'Endospore',
       stateToxinActive: 'Active Toxin',
+      statePredating: 'Engulfing Prey',
+      stateUnderAttack: 'In Combat / Defending',
       stateInfectedPhage: 'Infected (T4 Phage)',
+      stateFightingPhage: 'CRISPR Defense vs Phage',
+      statePhageCured: 'Phage Neutralized (CRISPR)!',
       stateDying: 'Dying (Lysis)',
       stateDividing: 'Dividing',
       gen: 'Gen',
@@ -1521,6 +1595,16 @@ const EN_BUNDLE: LocaleBundle = {
       paretoBody:
         'If you make a giant, super-fast microbe with lots of weapons, it will get super hungry all the time and run out of energy if food is scarce!',
       substrateLabel: 'Food',
+      bioBalance: {
+        title: 'Energy & Appetite',
+        costBasal: 'Body & shield:',
+        costSwim: 'Swimming energy:',
+        costToxin: 'Poison / Magnets:',
+        costTotal: 'Total hunger:',
+        efficiencyHigh: 'Eats a little',
+        efficiencyModerate: 'Normal hunger',
+        efficiencyDanger: 'Super hungry!',
+      },
       categories: {
         metabolism: {
           title: 'A. How does it eat & what shape is it? (Metabolism)',
@@ -1551,7 +1635,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Name your microbe',
         initialPop: 'Microbes per Family (Cells)',
         rivals: 'Random rival populations',
-        size: 'Body Size (Cell Size · Bigger = hungrier)',
+        size: 'Body Size (Average: bigger = more reserves and hunger)',
         speed: 'Swim Power (Effective Speed)',
         armor: 'Shield Toughness (Wall Armor)',
         perception: 'Super nose (greater range costs more energy)',
@@ -1760,6 +1844,16 @@ const EN_BUNDLE: LocaleBundle = {
       paretoBody:
         'Every ability costs energy (ATP). If you build a huge, super-fast, heavily armed bacterium, it will burn so much energy per second that it will starve when food runs low.',
       substrateLabel: 'Food',
+      bioBalance: {
+        title: 'Energy Balance',
+        costBasal: 'Body upkeep:',
+        costSwim: 'Swimming drain:',
+        costToxin: 'Chemical / Magnet:',
+        costTotal: 'Total drain:',
+        efficiencyHigh: 'Low drain',
+        efficiencyModerate: 'Medium drain',
+        efficiencyDanger: 'High drain!',
+      },
       categories: {
         metabolism: {
           title: 'A. How does it get energy & what shape is it? (Metabolism)',
@@ -1790,7 +1884,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Your bacterium name',
         initialPop: 'Cells per Colony',
         rivals: 'Random rival colonies',
-        size: 'Body Size (Cell Size · Larger = bigger reserve, higher drain)',
+        size: 'Body Size (Average size: more reserves and drain)',
         speed: 'Motor Power (Effective Real Speed)',
         armor: 'Armor Toughness (Reduces incoming damage)',
         perception: 'Chemical sensing (greater range costs more upkeep)',
@@ -1999,6 +2093,16 @@ const EN_BUNDLE: LocaleBundle = {
       paretoBody:
         'Every adaptation has an ATP metabolic cost (Kleiber’s Law). A huge, fast, heavily armed bacterium will consume so much energy that it will starve if substrate runs low.',
       substrateLabel: 'Substrate',
+      bioBalance: {
+        title: 'Energy Balance (ATP)',
+        costBasal: 'Basal Metabolism (Body + Wall + Mutation):',
+        costSwim: 'Cruise Swimming Drain:',
+        costToxin: 'Venom Factory / Chemical Magnets:',
+        costTotal: 'Estimated Total Drain:',
+        efficiencyHigh: 'High Efficiency',
+        efficiencyModerate: 'Moderate Drain',
+        efficiencyDanger: 'Starvation Risk',
+      },
       categories: {
         metabolism: {
           title: 'A. How does it feed & what is its morphology? (Metabolism & Size)',
@@ -2029,7 +2133,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Your strain name',
         initialPop: 'Specimens per Strain',
         rivals: 'Random rival strains',
-        size: 'Cell Size (Larger = bigger reserve, higher basal drain)',
+        size: 'Cell Size (Average size: reserves and basal drain)',
         speed: 'Locomotor Power (Effective Real Speed)',
         armor: 'Membrane Armor (Physical & chemical damage mitigation)',
         perception: 'Chemotaxis (greater range costs more upkeep)',
@@ -2238,6 +2342,16 @@ const EN_BUNDLE: LocaleBundle = {
       paretoBody:
         'A very fast, large, heavily armed bacterium will suffer extreme metabolic ATP drain and collapse from starvation when substrate becomes scarce.',
       substrateLabel: 'Substrate',
+      bioBalance: {
+        title: 'Energy Balance (ATP)',
+        costBasal: 'Basal Metabolism (Body + Wall + Mutation):',
+        costSwim: 'Cruise Swimming Drain:',
+        costToxin: 'Venom Factory / Chemical Magnets:',
+        costTotal: 'Estimated Total Drain:',
+        efficiencyHigh: 'High Efficiency',
+        efficiencyModerate: 'Moderate Drain',
+        efficiencyDanger: 'Starvation Risk',
+      },
       categories: {
         metabolism: {
           title: 'A. Metabolism, Nutrition & Size (Base Morphology)',
@@ -2268,7 +2382,7 @@ const EN_BUNDLE: LocaleBundle = {
         strainNamePlaceholder: 'Strain name',
         initialPop: 'Initial Inoculum per Strain',
         rivals: 'Random competing populations',
-        size: 'Cell Radius (Codon S · Kleiber allometric scaling)',
+        size: 'Cell Radius (Mean radius: reserves and basal cost)',
         speed: 'Locomotor Power (Codon V · Effective speed)',
         armor: 'Membrane Armor (Codon A · Lysis reduction)',
         perception: 'Chemotaxis (P · receptor maintenance cost)',
