@@ -50,7 +50,7 @@ Este archivo proporciona el contexto arquitectónico, las reglas de negocio y la
      * La representación visual en `src/render/ProceduralRenderer.ts`.
      * Los selectores del diseñador en `index.html` y `src/main.ts`.
 5. **Sincronización Obligatoria de la Documentación (`.md`):**
-   * **Cada cambio que se realice en las características, mecánicas, fórmulas, controles o arquitectura del juego DEBE quedar reflejado inmediatamente en los archivos `.md` correspondientes** (`MECANICAS_JUEGO.md`, `ARQUITECTURA.md`, `DESARROLLO_Y_DESPLIEGUE.md` y/o este mismo `AGENTS.md`). Ninguna tarea funcional se considera terminada si la documentación queda desactualizada respecto al código.
+   * **Cada cambio que se realice en las características, mecánicas, fórmulas, controles o arquitectura del juego DEBE quedar reflejado inmediatamente en los archivos `.md` correspondientes** (`README.md`, `ARQUITECTURA.md`, `DESARROLLO_Y_DESPLIEGUE.md` y/o este mismo `AGENTS.md`). Ninguna tarea funcional se considera terminada si la documentación queda desactualizada respecto al código.
 
 ---
 

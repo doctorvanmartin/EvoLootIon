@@ -1,4 +1,4 @@
-# Mecánicas del Juego y Modelo Biológico — EvoLootIon
+# EvoLootIon — Mecánicas del Juego y Modelo Biológico
 
 **EvoLootIon** es un simulador de vida artificial y estrategia evolutiva microbiana en 2D. El jugador diseña el genoma inicial de una cepa bacteriana combinando rasgos cualitativos en **5 categorías biológicas** y ajustando atributos cuantitativos sujetos a restricciones físicas reales (ley alométrica de Kleiber y arrastre viscoso a bajo número de Reynolds).
 

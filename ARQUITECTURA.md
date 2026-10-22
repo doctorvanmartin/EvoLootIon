@@ -15,7 +15,7 @@ EvoLootIon/
 │   └── icons/                        # Iconos vectoriales rasterizados (128x128 en raíz y 512x512 en 512/)
 ├── package.json                      # Scripts de construcción y dependencias de desarrollo (Vite, TS)
 ├── tsconfig.json                     # Configuración estricta de TypeScript (ES2022, bundler)
-├── MECANICAS_JUEGO.md                # Documentación funcional y modelo matemático
+├── README.md                         # Presentación del proyecto, mecánicas y modelo biológico
 ├── ARQUITECTURA.md                   # Documentación técnica y decisiones de diseño (ADRs)
 ├── DESARROLLO_Y_DESPLIEGUE.md        # Guía de compilación, pruebas y puesta en producción
 ├── AGENTS.md                         # Contexto e invariantes para agentes de IA / LLMs
