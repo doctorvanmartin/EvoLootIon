@@ -100,7 +100,9 @@ Cada cepa puede incorporar un órgano especial con una **ventaja táctica** y un
 
 La reserva de energía celular $E$ evoluciona en cada paso temporal $\Delta t$ según:
 
-$$\frac{dE}{dt} = \dot{E}_{\text{in}} - \dot{E}_{\text{out}}$$
+$$
+\frac{dE}{dt} = \dot{E}_{\text{in}} - \dot{E}_{\text{out}}
+$$
 
 Si en cualquier instante $E \le 0$, la bacteria sufre **lisis celular**: muere y deposita en su posición un corpúsculo de detritus orgánico con energía equivalente al $45\%$ de su umbral de división (`CORPSE_ENERGY_RATIO`).
 
@@ -108,21 +110,29 @@ Si en cualquier instante $E \le 0$, la bacteria sufre **lisis celular**: muere y
 
 1. **Fotosíntesis (Epicentro móvil acotado, Michaelis-Menten y Auto-sombreado de Beer-Lambert):**
 
-   $$I_{\text{raw}}(\mathbf{x}) = I_{\min} + (1 - I_{\min}) \cdot \exp\left(-1.65 \cdot \frac{\|\mathbf{x} - \mathbf{x}_{\text{luz}}(t)\|^2}{R_{\text{luz}}^2}\right)$$
+  $$
+  I_{\text{raw}}(\mathbf{x}) = I_{\min} + (1 - I_{\min}) \cdot \exp\left(-1.65 \cdot \frac{\|\mathbf{x} - \mathbf{x}_{\text{luz}}(t)\|^2}{R_{\text{luz}}^2}\right)
+  $$
 
-   $$I(\mathbf{x}) = \frac{I_{\text{raw}}(\mathbf{x})}{1 + \alpha_{\text{shade}} \cdot N_{\text{vecinas}}}, \qquad \dot{E}_{\text{photo}} = V_{\max}^{\text{photo}} \cdot \frac{I(\mathbf{x})}{K_I + I(\mathbf{x})}$$
+  $$
+  I(\mathbf{x}) = \frac{I_{\text{raw}}(\mathbf{x})}{1 + \alpha_{\text{shade}} \cdot N_{\text{vecinas}}}, \qquad \dot{E}_{\text{photo}} = V_{\max}^{\text{photo}} \cdot \frac{I(\mathbf{x})}{K_I + I(\mathbf{x})}
+  $$
 
    Donde $\mathbf{x}_{\text{luz}}(t)$ es el epicentro luminoso elegido al azar con deriva suave ($14\text{ px/s}$), $R_{\text{luz}}$ parte de $260\text{ px}$ y se ajusta con los botones de radio de luz entre $120$ y $520\text{ px}$ en pasos de $40\text{ px}$, $I_{\min} = 0.03$, $\alpha_{\text{shade}} = 0.22$ es el coeficiente de auto-sombreado por bacterias vecinas en un radio de $42\text{ px}$, $V_{\max}^{\text{photo}} = 4.6$ y $K_I = 0.38$.
 
 2. **Ingesta de Sustrato por Contacto:**
 
-   $$\Delta E_{\text{nut}} = S \cdot \left(\frac{2.1 \cdot S}{K_S + S}\right) \cdot M_{\text{tipo}}$$
+  $$
+  \Delta E_{\text{nut}} = S \cdot \left(\frac{2.1 \cdot S}{K_S + S}\right) \cdot M_{\text{tipo}}
+  $$
 
    Donde $S$ es el valor energético de la partícula, $K_S = 26.0$ y $M_{\text{tipo}}$ refleja las bonificaciones tróficas (fermentadora $\times 1.45$, saprófita sobre cadáver $\times 1.55$, fotosintética $\times 0.20$).
 
 3. **Fagocitosis Predadora y Combate Directo entre Bacterias:**
 
-   $$\dot{E}_{\text{pred}} = \eta_{\text{pred}} \cdot \frac{\text{DPS}_{\text{bite}} \cdot \phi_{\text{evasión}}}{1 + 0.25 \cdot \text{Armor}}$$
+  $$
+  \dot{E}_{\text{pred}} = \eta_{\text{pred}} \cdot \frac{\text{DPS}_{\text{bite}} \cdot \phi_{\text{evasión}}}{1 + 0.25 \cdot \text{Armor}}
+  $$
 
    Con $\eta_{\text{pred}} = 0.85$ y $\text{DPS}_{\text{bite}} = 16$. Durante el combate cuerpo a cuerpo y químico se manifiestan efectos físicos y visuales según los atributos de cada bacteria:
    * **Embestida y Flujo de Fagocitosis (`drawPredatorFeedingStream`):** La predadora embiste frontalmente y absorbe un chorro de vesículas de citoplasma del color (`hue`) de la presa hacia su boca, mientras la presa sufre una muesca de desgarro y sacudidas en el punto mordido. Si la predadora tiene **Pinzas (`claws`)**, sujeta y arrastra físicamente a la presa hacia sus fauces.
@@ -154,23 +164,31 @@ Para impedir que la evolución produzca un "super-organismo" sin debilidades, el
 
 2. **Metabolismo Basal y Mantenimiento de Pared (Escalado de Kleiber dinámico):**
 
-   $$\dot{E}_{\text{basal}}(\gamma) = 0.95 \cdot \left(\frac{r_{\text{genético}} \cdot \gamma}{8}\right)^2 \cdot M_{\text{wall}} + k_{\text{armor}}\cdot\text{Armor} + C_{\text{adapt}} + 0.30\cdot\left(\frac{P}{160}\right)^2$$
+  $$
+  \dot{E}_{\text{basal}}(\gamma) = 0.95 \cdot \left(\frac{r_{\text{genético}} \cdot \gamma}{8}\right)^2 \cdot M_{\text{wall}} + k_{\text{armor}}\cdot\text{Armor} + C_{\text{adapt}} + 0.30\cdot\left(\frac{P}{160}\right)^2
+  $$
 
    Crecer en tamaño al comer ($r_{\text{genético}} \cdot \gamma$) amplía el radio de contacto para absorber nutrientes o cazar, pero encarece cuadráticamente el mantenimiento celular en tiempo real (`currentBasalMetabolism`). Acumular armadura y mantener adaptaciones o receptores sensoriales también impone un drenaje constante ($k_{\text{armor}}=0.06$ para la capa S y $0.08$ para las demás paredes).
 
 3. **Arrastre Viscoso Locomotor (Bajo Número de Reynolds dinámico):**
 
-   $$c_{\text{drag}}(\gamma) = k_{\text{mot}} \cdot \left(\frac{r_{\text{genético}} \cdot \gamma}{8}\right) \cdot v_{\max}^{1.75}, \qquad \dot{E}_{\text{mov}} = c_{\text{drag}}(\gamma) \cdot v^2$$
+  $$
+  c_{\text{drag}}(\gamma) = k_{\text{mot}} \cdot \left(\frac{r_{\text{genético}} \cdot \gamma}{8}\right) \cdot v_{\max}^{1.75}, \qquad \dot{E}_{\text{mov}} = c_{\text{drag}}(\gamma) \cdot v^2
+  $$
 
 4. **Síntesis de Bacteriocinas:**
 
-   $$\dot{E}_{\text{tox}} = 0.20 \cdot \text{ToxinPower} \quad (\text{solo cuando la emisión está activa})$$
+  $$
+  \dot{E}_{\text{tox}} = 0.20 \cdot \text{ToxinPower} \quad (\text{solo cuando la emisión está activa})
+  $$
 
 ### 2.3. Difusión Gaussiana del Daño Químico
 
 Cuando una bacteria emite bacteriocinas, las bacterias de distinto `lineageId` situadas a distancia $d \le R_{\text{tox}}$ reciben un daño por segundo atenuado de forma gaussiana:
 
-$$\dot{D}(d) = \frac{\text{ToxinPower} \cdot 16 \cdot e^{-\frac{d^2}{2\sigma^2}} \cdot \phi_{\text{capsule}} \cdot \phi_{\text{gram-}} \cdot \phi_{\text{spore}}}{1 + 0.35 \cdot \text{Armor}}$$
+$$
+\dot{D}(d) = \frac{\text{ToxinPower} \cdot 16 \cdot e^{-\frac{d^2}{2\sigma^2}} \cdot \phi_{\text{capsule}} \cdot \phi_{\text{gram-}} \cdot \phi_{\text{spore}}}{1 + 0.35 \cdot \text{Armor}}
+$$
 
 ---
 
@@ -258,7 +276,9 @@ Antes de iniciar la simulación (o en cualquier momento pulsando **Editor ADN**)
 
 Cada instancia de `DNA` sintetiza automáticamente su propia **Cadena Codificante (`5' → 3'`)** mediante `DNA.formatCodingStrand`, emparejando cada categoría biológica con su atributo cuantitativo inmediatamente después:
 
-$$\texttt{ATG}-\texttt{[META]-S\{r\}}-\texttt{[MOT]-V\{10v\}}-\texttt{[WALL]-A\{10a\}}-\texttt{[REPRO]-P\{p/10\}}-\texttt{[INTER]-T\{10t\}}-\texttt{[ADAPT]}-\texttt{H\{hue\}}-\texttt{TAG}$$
+$$
+	exttt{ATG}-\texttt{[META]-S\{r\}}-\texttt{[MOT]-V\{10v\}}-\texttt{[WALL]-A\{10a\}}-\texttt{[REPRO]-P\{p/10\}}-\texttt{[INTER]-T\{10t\}}-\texttt{[ADAPT]}-\texttt{H\{hue\}}-\texttt{TAG}
+$$
 
 * **`ATG` / `TAG`:** Codones universales de inicio y parada de traducción.
 * **Pares Categoría + Atributo:**
