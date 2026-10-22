@@ -245,7 +245,7 @@ Los nombres de las cepas rivales se construyen dinámicamente combinando partíc
 
 ### 4.3. Cadena Codificante de ADN (`5' → 3'`) y Editor Genómico Previo
 
-Antes de iniciar la simulación (o en cualquier momento pulsando **Editor ADN**), el jugador accede a una pantalla dedicada: el **Editor Genómico y Fenotípico** (`#genomeEditorModal`), que otorga protagonismo central al visor de **Microscopio Electrónico** y al **Balance Bioenergético** de Kleiber/Pareto. En él:
+Antes de iniciar la simulación (o en cualquier momento pulsando **Editor ADN**), el jugador accede a una pantalla dedicada: el **Editor Genómico y Fenotípico** (`#genomeEditorModal`), que otorga protagonismo central al visor de **Microscopio Electrónico** y al **Balance Bioenergético** de Kleiber/Pareto. La cabecera identifica el juego como **Evo Loot Ion** e incluye el enlace **Instrucciones**, que abre este README renderizado en GitHub; en pantallas móviles el enlace se reduce a un botón compacto con icono de ayuda. En él:
 
 * El selector **Edad del científico** (`5-7`, `8-10`, `11-14`, `15+`) y el selector compacto de idioma con banderas (`🇪🇸` / `🇬🇧`) se ubican juntos directamente encima del campo para introducir el nombre de la cepa, evitando ocupar espacio fijo en la barra superior.
 * El nombre base de la cepa se guarda en el almacenamiento local del navegador (`evolootion.strainName`); al iniciar cada sesión se le añade un sufijo aleatorio de cuatro caracteres alfanuméricos en mayúsculas, sin acumular sufijos guardados.

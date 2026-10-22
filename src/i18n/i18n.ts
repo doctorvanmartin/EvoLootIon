@@ -96,6 +96,7 @@ export interface LocaleBundle {
     };
     editorModalAria: string;
     editorTitle: string;
+    instructionsLink: string;
     btnReturnToCulture: string;
     microscopeTitle: string;
     dnaSequenceBadge: string;
@@ -264,6 +265,7 @@ const ES_BUNDLE: LocaleBundle = {
     },
     editorModalAria: 'Editor Genómico y Fenotípico',
     editorTitle: 'Editor Genómico y Fenotípico',
+    instructionsLink: 'Instrucciones',
     btnReturnToCulture: 'Volver al Cultivo ×',
     microscopeTitle: 'Microscopio Electrónico',
     dnaSequenceBadge: 'Secuencia ADN',
@@ -1424,6 +1426,7 @@ const EN_BUNDLE: LocaleBundle = {
     },
     editorModalAria: 'Genomic and Phenotypic Editor',
     editorTitle: 'Genomic & Phenotypic Editor',
+    instructionsLink: 'Instructions',
     btnReturnToCulture: 'Back to Culture ×',
     microscopeTitle: 'Electron Microscope',
     dnaSequenceBadge: 'DNA Sequence',

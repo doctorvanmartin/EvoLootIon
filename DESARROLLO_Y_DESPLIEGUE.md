@@ -129,7 +129,7 @@ Al compilar con `npm run build`, todo el juego queda empaquetado como archivos e
 
 ### Opción B: Despliegue en Subcarpeta (ej. GitHub Pages)
 
-Para este repositorio, GitHub Pages publicará el sitio en `https://doctorvanmartin.github.io/EvoLootIon/`. Vite configura automáticamente la ruta base a partir del nombre del repositorio durante la compilación de GitHub Actions, por lo que también funciona en un *fork* con otro nombre.
+Para este repositorio, GitHub Pages publicará el sitio en `https://doctorvanmartin.github.io/EvoLootIon/`. Vite configura automáticamente la ruta base a partir del nombre del repositorio durante la compilación de GitHub Actions, por lo que también funciona en un *fork* con otro nombre. La cabecera del editor muestra la marca **Evo Loot Ion** y enlaza **Instrucciones** con la vista renderizada de `README.md` en GitHub; en móviles el enlace se presenta como un botón de ayuda compacto.
 
 #### Publicación automática con GitHub Actions
 

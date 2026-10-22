@@ -21,6 +21,7 @@ import { isKnownSpeciesId, KnownSpeciesId } from './models/KnownSpeciesCatalog';
 // --- Referencias del DOM ---
 const genomeEditorModal = document.getElementById('genomeEditorModal')!;
 const btnCloseEditor = document.getElementById('btnCloseEditor')!;
+const btnInstructions = document.getElementById('btnInstructions') as HTMLAnchorElement;
 const btnOpenEditorSidebar = document.getElementById('btnOpenEditorSidebar')!;
 const btnOpenEditorHud = document.getElementById('btnOpenEditorHud')!;
 
@@ -1747,6 +1748,9 @@ function applyTranslations(): void {
   // Cabecera del Editor
   setTextById('lblEditorTitle', ui.editorTitle);
   setTextById('lblEditorSubtitle', age.editorSubtitle);
+  setTextById('lblInstructionsLink', ui.instructionsLink);
+  btnInstructions.setAttribute('aria-label', ui.instructionsLink);
+  btnInstructions.title = ui.instructionsLink;
   btnCloseEditor.textContent = ui.btnReturnToCulture;
 
   // Columna izquierda del Editor

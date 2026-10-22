@@ -83,6 +83,22 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
+    }
+
+    .editor-heading-copy {
+      min-width: 0;
+    }
+
+    .editor-brand {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--bio-green-bright);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      line-height: 1;
+      text-transform: uppercase;
     }
 
     .ui-icon {
@@ -171,6 +187,41 @@
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    .editor-instructions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 0 13px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.08);
+      color: #bae6fd;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .editor-instructions:hover {
+      background: rgba(56, 189, 248, 0.16);
+      border-color: rgba(56, 189, 248, 0.55);
+    }
+
+    .editor-instructions-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      font-size: 11px;
+      line-height: 1;
     }
 
     .btn-return {
@@ -2303,6 +2354,41 @@
         pointer-events: auto;
       }
     }
+
+    @media (max-width: 600px) {
+      .editor-instructions {
+        width: 36px;
+        min-height: 36px;
+        padding: 0;
+      }
+      .editor-instructions-label {
+        display: none;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .editor-topbar {
+        padding: 8px 12px;
+        gap: 8px;
+      }
+      .editor-title-group {
+        gap: 0;
+      }
+      .editor-title-group > .status-dot,
+      .editor-title-group > .ui-icon {
+        display: none;
+      }
+      .editor-brand {
+        font-size: 9px;
+        margin-bottom: 3px;
+      }
+      .editor-title {
+        font-size: 14px;
+      }
+      .editor-topbar-actions {
+        gap: 6px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2314,12 +2400,17 @@
       <div class="editor-title-group">
         <span class="status-dot"></span>
         <img class="ui-icon ui-icon-lg" src="icons/microscope-lab.png" alt="" />
-        <div>
+        <div class="editor-heading-copy">
+          <span class="editor-brand">Evo Loot Ion</span>
           <h1 class="editor-title" id="lblEditorTitle">Editor Genómico y Fenotípico</h1>
           <p class="editor-subtitle" id="lblEditorSubtitle">Diseña la cadena de ADN inicial de tu cepa antes de inocular la placa de cultivo</p>
         </div>
       </div>
       <div class="editor-topbar-actions">
+        <a class="editor-instructions" id="btnInstructions" href="https://github.com/doctorvanmartin/EvoLootIon/blob/main/README.md" target="_blank" rel="noopener noreferrer">
+          <span class="editor-instructions-icon" aria-hidden="true">?</span>
+          <span class="editor-instructions-label" id="lblInstructionsLink">Instrucciones</span>
+        </a>
         <button type="button" class="btn-return hidden" id="btnCloseEditor">Volver al Cultivo &times;</button>
       </div>
     </header>
